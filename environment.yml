@@ -1,0 +1,10 @@
+name: d3pm-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - deno
+  - pip
+  - pip:
+    - ipykernel
+    - -e .

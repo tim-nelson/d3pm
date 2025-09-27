@@ -1,0 +1,7 @@
+
+[:extra == "jupyter"]
+ipywidgets
+
+[jupyter]
+ipywidgets
+IPython

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "d3pm"
+version = "0.1.0"
+description = "D3.js charts for Python via Deno - academic-style visualizations"
+readme = "README.md"
+authors = [{name = "Tim Nelson", email = "your.email@example.com"}]
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+keywords = ["d3", "charts", "visualization", "deno", "academic", "plots"]
+
+dependencies = [
+    "ipywidgets; extra == 'jupyter'",
+]
+
+[project.optional-dependencies]
+jupyter = ["ipywidgets", "IPython"]
+
+[project.urls]
+Homepage = "https://github.com/timnelson/d3pm"
+Repository = "https://github.com/timnelson/d3pm"
+Issues = "https://github.com/timnelson/d3pm/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+d3pm = ["charts/*.ts"]

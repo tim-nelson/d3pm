@@ -1,0 +1,116 @@
+Metadata-Version: 2.4
+Name: d3pm
+Version: 0.1.0
+Summary: D3.js charts for Python via Deno - academic-style visualizations
+Author-email: Tim Nelson <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/timnelson/d3pm
+Project-URL: Repository, https://github.com/timnelson/d3pm
+Project-URL: Issues, https://github.com/timnelson/d3pm/issues
+Keywords: d3,charts,visualization,deno,academic,plots
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: ipywidgets; extra == "jupyter"
+Provides-Extra: jupyter
+Requires-Dist: ipywidgets; extra == "jupyter"
+Requires-Dist: IPython; extra == "jupyter"
+
+# d3pm - D3.js Charts for Python
+
+Academic-style visualizations powered by D3.js through Deno runtime.
+
+## Features
+
+- **Bar charts**: For histograms and frequency distributions
+- **Line charts**: For continuous data and time series  
+- **Scatter plots**: For correlation analysis and point data
+- **Histogram charts**: For statistical distributions
+- **Chart composition**: Combine charts with `+`, `*`, `/` operators
+- **SVG output**: High-quality publications ready
+- **Academic styling**: Clean, minimal design optimized for research
+
+## Requirements
+
+- Python 3.8+
+- [Deno](https://deno.land/manual/getting_started/installation) runtime
+
+## Installation
+
+```bash
+pip install d3pm
+```
+
+For development:
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+```python
+import d3pm
+
+# Create a bar chart
+data = [{"label": "A", "value": 10}, {"label": "B", "value": 20}]
+chart = d3pm.bar(data, {"title": "Sample Data"})
+
+# Display in Jupyter
+display(chart)
+
+# Or use explicit plotting
+chart.plot()
+
+# Compose charts
+chart1 = d3pm.bar(data1, {"title": "Chart 1"})
+chart2 = d3pm.scatter(data2, {"title": "Chart 2"})
+
+# Side by side
+combined = chart1 + chart2
+
+# Overlaid
+overlaid = chart1 * chart2
+
+# Vertical
+stacked = chart1 / chart2
+```
+
+## Chart Types
+
+### Bar Chart
+```python
+data = [{"label": "A", "value": 10}, {"label": "B", "value": 20}]
+d3pm.bar(data, {"title": "Bar Chart", "xLabel": "Categories", "yLabel": "Values"})
+```
+
+### Line Chart
+```python
+data = [{"name": "Series A", "data": [{"x": 1, "y": 10}, {"x": 2, "y": 15}]}]
+d3pm.line(data, {"title": "Time Series"})
+```
+
+### Scatter Plot
+```python
+data = [{"name": "Group A", "data": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]}]
+d3pm.scatter(data, {"title": "Scatter Plot"})
+```
+
+### Histogram
+```python
+bins = [{"binStart": 0, "binEnd": 1, "count": 10}, {"binStart": 1, "binEnd": 2, "count": 15}]
+d3pm.hist(bins, {"title": "Distribution"})
+```
+
+## License
+
+MIT
