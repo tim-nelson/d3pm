@@ -8,6 +8,7 @@ Academic-style visualizations powered by D3.js through Deno runtime.
 - **Line charts**: For continuous data and time series  
 - **Scatter plots**: For correlation analysis and point data
 - **Histogram charts**: For statistical distributions
+- **Graph visualization**: For networks, neural networks, and computational graphs
 - **Chart composition**: Combine charts with `+`, `*`, `/` operators
 - **SVG output**: High-quality publications ready
 - **Academic styling**: Clean, minimal design optimized for research
@@ -102,6 +103,50 @@ d3pm.hist(data, title="Distribution")
 
 # Custom number of bins
 d3pm.hist(data, bins=10, title="Distribution")
+```
+
+### Graph Visualization
+```python
+# Define nodes with shapes and labels
+nodes = [
+    d3pm.Node("a", "2.0", "rect"),      # Rectangular node for values  
+    d3pm.Node("b", "-3.0", "rect"),
+    d3pm.Node("mul1", "*", "circle"),   # Circular node for operations
+    d3pm.Node("result", "-6.0", "rect")
+]
+
+# Define edges connecting nodes
+edges = [
+    d3pm.Edge("a", "mul1"),      # a -> *
+    d3pm.Edge("b", "mul1"),      # b -> *  
+    d3pm.Edge("mul1", "result")  # * -> result
+]
+
+# Create computational graph with fixed left-to-right layout
+d3pm.graph(nodes, edges, layout='fixed', title="Computational Graph")
+
+# Or use force-directed layout for interactive exploration
+d3pm.graph(nodes, edges, layout='force', title="Network Graph")
+```
+
+**Computational Graph Example:**
+```python
+# Neural network computation: a*b + c*f
+nodes = [
+    d3pm.Node("a", "2.0", "rect"), d3pm.Node("b", "-3.0", "rect"),
+    d3pm.Node("mul1", "*", "circle"), d3pm.Node("e", "-6.0", "rect"),
+    d3pm.Node("c", "10.0", "rect"), d3pm.Node("add1", "+", "circle"),
+    d3pm.Node("d", "4.0", "rect"), d3pm.Node("f", "-2.0", "rect"),
+    d3pm.Node("mul2", "*", "circle"), d3pm.Node("L", "-8.0", "rect")
+]
+
+edges = [
+    d3pm.Edge("a", "mul1"), d3pm.Edge("b", "mul1"), d3pm.Edge("mul1", "e"),
+    d3pm.Edge("e", "add1"), d3pm.Edge("c", "add1"), d3pm.Edge("add1", "d"),
+    d3pm.Edge("d", "mul2"), d3pm.Edge("f", "mul2"), d3pm.Edge("mul2", "L")
+]
+
+d3pm.graph(nodes, edges, layout='fixed', title="Neural Network Forward Pass")
 ```
 
 ## License

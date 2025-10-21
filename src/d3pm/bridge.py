@@ -37,6 +37,8 @@ class Node:
     id: str
     text: str
     shape: Literal['rect', 'circle']
+    x: Optional[float] = None
+    y: Optional[float] = None
     color: Optional[str] = None
     tooltip: Optional[str] = None
 
@@ -58,8 +60,12 @@ def _build_chart_options(config: ChartConfig, **kwargs) -> Dict[str, Any]:
         options['xLabel'] = config.xlabel  
     if config.ylabel is not None:
         options['yLabel'] = config.ylabel
-    options['width'] = config.width
-    options['height'] = config.height
+    
+    # Only include width/height in options if explicitly provided
+    if config.width is not None:
+        options['width'] = config.width
+    if config.height is not None:
+        options['height'] = config.height
     
     # Add any additional kwargs
     options.update(kwargs)
@@ -95,7 +101,7 @@ class D3DenoBridge:
         """Find the viz directory containing Deno scripts."""
         # Try current directory first (when running from src/viz/)
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        chart_types = ["BarChart", "LineChart", "ScatterChart"]
+        chart_types = ["BarChart", "LineChart", "ScatterChart", "GraphChart"]
         
         # Check if charts are in current directory or charts subdirectory
         if all(os.path.exists(os.path.join(current_dir, f"{chart}.ts")) for chart in chart_types):
@@ -147,7 +153,8 @@ class D3DenoBridge:
             "bar": "BarChart.ts",
             "line": "LineChart.ts", 
             "scatter": "ScatterChart.ts",
-            "histogram": "HistogramChart.ts"
+            "histogram": "HistogramChart.ts",
+            "graph": "GraphChart.ts"
         }
         
         if script_name not in script_mapping:
@@ -245,6 +252,21 @@ class D3DenoBridge:
         """
         chart_input = {"data": data, "options": options or {}}
         return self._call_deno_script("histogram", chart_input)
+
+    def create_graph_chart(self, data: Dict[str, List[Dict[str, Any]]], 
+                          options: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Create a graph/network chart using D3.js via Deno.
+        
+        Args:
+            data: Graph data: {"nodes": [Node...], "edges": [Edge...]}
+            options: Chart options (title, layout, colors, size, etc.)
+            
+        Returns:
+            SVG string
+        """
+        chart_input = {"data": data, "options": options or {}}
+        return self._call_deno_script("graph", chart_input)
     
     def display_svg(self, svg_string: str, width: int = 600, height: int = 400):
         """
@@ -670,6 +692,74 @@ def hist(values, bins=20, title=None, xlabel=None, ylabel=None,
     
     return chart
 
+
+def graph(nodes: List[Node], edges: List[Edge], layout='reverse', title=None, 
+          width=None, height=None, show=False, **kwargs) -> 'Chart':
+    """
+    Create a graph/network visualization with nodes and edges.
+    
+    Args:
+        nodes: List of Node objects defining graph vertices
+        edges: List of Edge objects defining graph connections  
+        layout: Layout algorithm - 'reverse' for structured flow, 'force' for interactive
+        title: Chart title (optional)
+        width: Chart width in pixels (None for auto-sizing)
+        height: Chart height in pixels (None for auto-sizing) 
+        show: Whether to display the chart immediately
+        **kwargs: Additional chart options
+        
+    Returns:
+        Chart object with composition operators (+, *, /)
+        
+    Examples:
+        nodes = [Node("a", "2.0", "rect"), Node("op", "+", "circle"), Node("b", "5.0", "rect")]
+        edges = [Edge("a", "op"), Edge("op", "b")]
+        d3pm.graph(nodes, edges, layout='fixed', title="Computation Graph")
+    """
+    bridge = _get_default_bridge()
+    
+    # Validate inputs
+    if not nodes:
+        raise ValueError("Must provide at least one node")
+    
+    node_ids = {node.id for node in nodes}
+    for edge in edges:
+        if edge.source not in node_ids:
+            raise ValueError(f"Edge source '{edge.source}' not found in nodes")
+        if edge.target not in node_ids:
+            raise ValueError(f"Edge target '{edge.target}' not found in nodes")
+    
+    # Convert Node and Edge objects to dictionaries
+    nodes_data = [asdict(node) for node in nodes]
+    edges_data = [asdict(edge) for edge in edges]
+    
+    # Create data in expected format
+    clean_data = {
+        "nodes": nodes_data,
+        "edges": edges_data
+    }
+    
+    # Build options using shared configuration
+    config = ChartConfig(title=title, width=width, height=height, show=show)
+    options = _build_chart_options(config, **kwargs)
+    options['layout'] = layout
+    
+    svg = bridge.create_graph_chart(clean_data, options)
+    
+    # Create Chart object with metadata for composition
+    chart = Chart(
+        data=clean_data,
+        chart_type='graph',
+        options=options,
+        svg=svg,
+        width=width,
+        height=height
+    )
+    
+    if show:
+        chart.show()
+    
+    return chart
 
 
 class Chart:

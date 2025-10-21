@@ -64,10 +64,10 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
 
   // Named color mapping
   protected static readonly NAMED_COLORS: Record<string, string> = {
-    'red': '#e74c3c',
-    'yellow': '#f1c40f', 
-    'blue': '#3498db',
-    'green': '#2ecc71',
+    'red': '#CF7280',
+    'yellow': '#DBB55C', 
+    'blue': '#658DCD',
+    'green': '#96ceb4',
     // Add some additional useful colors
     'orange': '#f39c12',
     'purple': '#9b59b6',

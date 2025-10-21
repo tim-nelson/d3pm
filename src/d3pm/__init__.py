@@ -9,19 +9,25 @@ Features:
 - Line charts: For continuous data and time series  
 - Scatter plots: For correlation analysis and point data
 - Histogram charts: For statistical distributions
+- Graph visualization: For networks, neural networks, and computational graphs
 - Chart composition with +, *, / operators
 - SVG output for high-quality publications
 
 Usage:
     import d3pm
     
-    # Create charts
-    chart1 = d3pm.bar(data, {"title": "Bar Chart"}, width=400)
-    chart2 = d3pm.scatter(data, {"title": "Scatter"}, width=500) 
+    # Create basic charts
+    chart1 = d3pm.bar(categories, values, title="Bar Chart")
+    chart2 = d3pm.scatter(x_data, y_data, title="Scatter Plot") 
+    
+    # Create graph visualizations
+    nodes = [d3pm.Node("a", "2.0", "rect"), d3pm.Node("op", "+", "circle")]
+    edges = [d3pm.Edge("a", "op")]
+    graph_chart = d3pm.graph(nodes, edges, layout='fixed', title="Computation")
     
     # Display charts
     display(chart1)        # Jupyter: direct SVG display
-    chart1.plot()          # Explicit plotting method
+    chart1.show()          # Explicit display method
     
     # Compose charts
     horizontal = chart1 + chart2  # Side-by-side
@@ -29,9 +35,9 @@ Usage:
     vertical = chart1 / chart2    # Top-bottom
 """
 
-from .bridge import bar, line, scatter, hist, Chart, D3DenoBridge
+from .bridge import bar, line, scatter, hist, graph, Chart, D3DenoBridge, Node, Edge
 
 __version__ = "0.1.0"
 __author__ = "Tim Nelson"
 
-__all__ = ['bar', 'line', 'scatter', 'hist', 'Chart', 'D3DenoBridge']
+__all__ = ['bar', 'line', 'scatter', 'hist', 'graph', 'Chart', 'D3DenoBridge', 'Node', 'Edge']
