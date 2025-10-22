@@ -27,6 +27,10 @@ export interface BaseChartOptions {
   forceOrigin?: boolean;
   legendPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left' | 'right' | 'top' | 'bottom';
   legendOffset?: [number, number];
+  legendStyle?: 'standard' | 'tags';
+  tagPadding?: number;
+  tagSpacing?: number;
+  tagBorderRadius?: number;
   xlim?: (number | null)[];
   ylim?: (number | null)[];
   preserveAspectRatio?: 'scale' | 'clip';
@@ -91,6 +95,10 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
       forceOrigin: true,
       legendPosition: 'right' as const,
       legendOffset: [0, 0] as [number, number],
+      legendStyle: 'standard' as const,
+      tagPadding: 2,
+      tagSpacing: 4,
+      tagBorderRadius: 3,
       preserveAspectRatio: 'scale' as const,
       tickStrategy: 'auto' as const,
       aspectRatio: 'auto' as const
@@ -144,12 +152,13 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
     this.svgElements = [];
     
     this.renderBackground();
+    this.renderTitle();
+    this.renderLegendIfTop(); // Render legends at top position
     this.renderMainGroup();
     this.renderAxes();
     this.renderChartElements(); // Implemented by subclasses
     this.closeMainGroup();
-    this.renderLegend();
-    this.renderTitle();
+    this.renderLegendIfNotTop(); // Render legends at other positions
     this.renderAxisLabels();
     
     return this.wrapSVG();
@@ -170,13 +179,33 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
   }
 
   protected calculateDimensions(): ChartDimensions {
-    const { width, height, margin } = this.options;
+    const { width, height, margin, legendPosition, legendStyle } = this.options;
+    
+    // Adjust margins for external legend positions
+    let adjustedMargin = { ...margin };
+    
+    // Only adjust margins for external positions (top/bottom/left/right)
+    if (legendPosition === 'top') {
+      if (legendStyle === 'tags') {
+        adjustedMargin.top = margin.top + this.calculateTagLegendHeight();
+      } else {
+        adjustedMargin.top = margin.top + 20; // Reduced standard legend height
+      }
+    } else if (legendPosition === 'bottom') {
+      if (legendStyle === 'tags') {
+        adjustedMargin.bottom = margin.bottom + this.calculateTagLegendHeight();
+      } else {
+        adjustedMargin.bottom = margin.bottom + 20; // Reduced standard legend height
+      }
+    }
+    // Note: left/right positioning will be handled as overlays for now
+    
     return {
       width,
       height,
-      innerWidth: width - margin.left - margin.right,
-      innerHeight: height - margin.top - margin.bottom,
-      margin
+      innerWidth: width - adjustedMargin.left - adjustedMargin.right,
+      innerHeight: height - adjustedMargin.top - adjustedMargin.bottom,
+      margin: adjustedMargin
     };
   }
 
@@ -275,6 +304,79 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
     // To be overridden by subclasses that need legends
   }
 
+  protected renderLegendIfTop(): void {
+    // Render legend at top position if needed
+    if (this.options.legendPosition === 'top') {
+      this.renderUnifiedLegend();
+    }
+  }
+
+  protected renderLegendIfNotTop(): void {
+    // Render legend at non-top positions
+    if (this.options.legendPosition !== 'top') {
+      this.renderUnifiedLegend();
+    }
+  }
+
+  protected renderUnifiedLegend(): void {
+    // To be overridden by subclasses that need legends
+    // This will handle both tag and standard styles at all positions
+  }
+
+  protected renderStandardLegend(labels: string[], colors: string[], x: number, y: number, orientation: 'vertical' | 'horizontal' = 'vertical'): void {
+    if (!labels.length) return;
+
+    const { text } = this.themeColors;
+    
+    if (orientation === 'horizontal') {
+      // Horizontal legend layout for top/bottom positions
+      labels.forEach((label, i) => {
+        const color = colors[i] || '#666';
+        const itemX = x + i * 80; // 80px spacing between items
+        const itemY = y;
+        
+        // Draw line indicator
+        this.svgElements.push(
+          `<line x1="${itemX}" y1="${itemY + 6}" x2="${itemX + 15}" y2="${itemY + 6}" stroke="${color}" stroke-width="2"/>`
+        );
+        
+        // Add text label
+        this.svgElements.push(
+          `<text x="${itemX + 20}" y="${itemY + 10}" fill="${text}" font-size="10px">${label}</text>`
+        );
+      });
+    } else {
+      // Vertical legend layout for left/right positions
+      labels.forEach((label, i) => {
+        const color = colors[i] || '#666';
+        const itemY = y + i * 18;
+        
+        // Draw line indicator
+        this.svgElements.push(
+          `<line x1="${x}" y1="${itemY + 6}" x2="${x + 15}" y2="${itemY + 6}" stroke="${color}" stroke-width="2"/>`
+        );
+        
+        // Add text label
+        this.svgElements.push(
+          `<text x="${x + 20}" y="${itemY + 10}" fill="${text}" font-size="10px">${label}</text>`
+        );
+      });
+    }
+  }
+
+  protected renderLegendWithData(labels: string[], colors: string[]): void {
+    if (!labels.length) return;
+    
+    const { legendStyle } = this.options;
+    const { x, y, orientation } = this.calculateLegendPosition(labels);
+    
+    if (legendStyle === 'tags') {
+      this.renderTagLegend(labels, colors, x, y, orientation);
+    } else {
+      this.renderStandardLegend(labels, colors, x, y, orientation);
+    }
+  }
+
   protected calculateLegendWidth(labels: string[]): number {
     // Estimate text width (rough approximation: 6px per character)
     const maxLabelLength = Math.max(...labels.map(label => label.length));
@@ -285,9 +387,92 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
     return itemCount * 18 + 10; // 18px per item + padding
   }
 
+  protected calculateTagLegendHeight(): number {
+    return 18 + 0; // tag height + minimal margin for tighter layout
+  }
+
+  protected calculateTotalTagWidth(labels: string[]): number {
+    const { tagSpacing, tagPadding } = this.options;
+    let totalWidth = 0;
+    
+    labels.forEach((label, i) => {
+      const textWidth = label.length * 6.2;
+      const tagWidth = Math.ceil(textWidth + (tagPadding * 2)); // Use configurable padding
+      totalWidth += tagWidth;
+      if (i < labels.length - 1) {
+        totalWidth += tagSpacing;
+      }
+    });
+    
+    return totalWidth;
+  }
+
+  protected renderTagLegend(labels: string[], colors: string[], x: number, y: number, orientation: 'vertical' | 'horizontal' = 'horizontal'): void {
+    if (!labels.length) return;
+
+    const { tagSpacing, tagBorderRadius, tagPadding } = this.options;
+    const fontSize = 10;
+    const tagHeight = 18;
+    const horizontalPadding = tagPadding;
+    
+    if (orientation === 'horizontal') {
+      // Horizontal layout (for top/bottom positions)
+      let currentX = x;
+      
+      labels.forEach((label, i) => {
+        const color = colors[i] || '#666';
+        const textWidth = label.length * 6.2;
+        const tagWidth = Math.ceil(textWidth + (horizontalPadding * 2));
+        
+        // Draw the tag rectangle
+        this.svgElements.push(
+          `<rect x="${currentX}" y="${y}" width="${tagWidth}" height="${tagHeight}" ` +
+          `fill="${color}" rx="${tagBorderRadius}" ry="${tagBorderRadius}"/>`
+        );
+        
+        // Position text in center of tag
+        const textX = currentX + tagWidth / 2;
+        const textY = y + tagHeight / 2 + 3.5;
+        
+        this.svgElements.push(
+          `<text x="${textX}" y="${textY}" text-anchor="middle" ` +
+          `fill="white" font-size="${fontSize}px" font-weight="500">${label}</text>`
+        );
+        
+        currentX += tagWidth + tagSpacing;
+      });
+    } else {
+      // Vertical layout (for left/right positions)
+      let currentY = y;
+      
+      labels.forEach((label, i) => {
+        const color = colors[i] || '#666';
+        const textWidth = label.length * 6.2;
+        const tagWidth = Math.ceil(textWidth + (horizontalPadding * 2));
+        
+        // Draw the tag rectangle
+        this.svgElements.push(
+          `<rect x="${x}" y="${currentY}" width="${tagWidth}" height="${tagHeight}" ` +
+          `fill="${color}" rx="${tagBorderRadius}" ry="${tagBorderRadius}"/>`
+        );
+        
+        // Position text in center of tag
+        const textX = x + tagWidth / 2;
+        const textY = currentY + tagHeight / 2 + 3.5;
+        
+        this.svgElements.push(
+          `<text x="${textX}" y="${textY}" text-anchor="middle" ` +
+          `fill="white" font-size="${fontSize}px" font-weight="500">${label}</text>`
+        );
+        
+        currentY += tagHeight + tagSpacing;
+      });
+    }
+  }
+
   protected calculateLegendPosition(labels: string[]): { x: number; y: number; orientation: 'vertical' | 'horizontal' } {
     const { width, height, margin } = this.dimensions;
-    const { legendPosition, legendOffset } = this.options;
+    const { legendPosition, legendOffset, legendStyle } = this.options;
     const [offsetX, offsetY] = legendOffset;
     
     const legendWidth = this.calculateLegendWidth(labels);
@@ -322,13 +507,27 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
         break;
       case 'top':
         orientation = 'horizontal';
-        x = width / 2 - (labels.length * 80) / 2 + offsetX; // Estimate horizontal width
-        y = 10 + offsetY;
+        if (legendStyle === 'tags') {
+          // Tags: centered horizontally, positioned below title
+          const totalTagWidth = this.calculateTotalTagWidth(labels);
+          x = width / 2 - totalTagWidth / 2 + offsetX;
+          y = 30 + offsetY; // Increased gap below title
+        } else {
+          // Standard: estimated spacing
+          x = width / 2 - (labels.length * 80) / 2 + offsetX;
+          y = 8 + offsetY; // Reduced top margin
+        }
         break;
       case 'bottom':
         orientation = 'horizontal';
-        x = width / 2 - (labels.length * 80) / 2 + offsetX;
-        y = height - 30 + offsetY;
+        if (legendStyle === 'tags') {
+          const totalTagWidth = this.calculateTotalTagWidth(labels);
+          x = width / 2 - totalTagWidth / 2 + offsetX;
+          y = height - 22 + offsetY; // Reduced bottom margin
+        } else {
+          x = width / 2 - (labels.length * 80) / 2 + offsetX;
+          y = height - 25 + offsetY; // Reduced bottom margin
+        }
         break;
       default:
         // Default to right

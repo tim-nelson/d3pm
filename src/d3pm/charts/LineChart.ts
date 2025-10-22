@@ -218,59 +218,81 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
     }
   }
 
-  protected renderLegend(): void {
+  protected renderUnifiedLegend(): void {
     const hasNamedSeries = this.data.some(s => s.name && s.name.trim() !== "");
+    
+    // Only show legend for multiple series with names
     if (this.data.length > 1 && hasNamedSeries) {
-      const { text } = this.themeColors;
-      const { showPoints, disjoint } = this.options;
-      
-      const labels = this.data.map(s => s.name);
-      const { x: legendX, y: legendY, orientation } = this.calculateLegendPosition(labels);
+      const labels = this.data.map(s => s.name || `Series ${this.data.indexOf(s) + 1}`);
+      const colors = this.data.map((s, i) => {
+        const colorKey = s.name || `series_${i}`;
+        return s.color || this.colorScale(colorKey);
+      });
+      this.renderLegendWithData(labels, colors);
+    }
+  }
 
-      if (orientation === 'horizontal') {
-        // Horizontal legend layout for top/bottom positions
-        this.data.forEach((seriesData, i) => {
-          const colorKey = seriesData.name || `series_${i}`;
-          const color = seriesData.color || this.colorScale(colorKey);
-          const itemX = legendX + i * 80; // 80px spacing between items
-          const itemY = legendY;
-          
+  protected renderLegendWithData(labels: string[], colors: string[]): void {
+    if (!labels.length) return;
+    
+    const { legendStyle } = this.options;
+    const { x, y, orientation } = this.calculateLegendPosition(labels);
+    
+    if (legendStyle === 'tags') {
+      this.renderTagLegend(labels, colors, x, y, orientation);
+    } else {
+      // Use custom line chart legend with points if needed
+      this.renderLineChartLegend(labels, colors, x, y, orientation);
+    }
+  }
+
+  protected renderLineChartLegend(labels: string[], colors: string[], x: number, y: number, orientation: 'vertical' | 'horizontal' = 'vertical'): void {
+    if (!labels.length) return;
+
+    const { text } = this.themeColors;
+    const { showPoints, disjoint } = this.options;
+    
+    if (orientation === 'horizontal') {
+      // Horizontal legend layout for top/bottom positions
+      labels.forEach((label, i) => {
+        const color = colors[i] || '#666';
+        const itemX = x + i * 80; // 80px spacing between items
+        const itemY = y;
+        
+        this.svgElements.push(
+          `<line x1="${itemX}" y1="${itemY + 6}" x2="${itemX + 15}" y2="${itemY + 6}" stroke="${color}" stroke-width="2"/>`
+        );
+        
+        if (showPoints || disjoint) {
           this.svgElements.push(
-            `<line x1="${itemX}" y1="${itemY + 6}" x2="${itemX + 15}" y2="${itemY + 6}" stroke="${color}" stroke-width="2"/>`
+            `<circle cx="${itemX + 7}" cy="${itemY + 6}" r="2" fill="${color}"/>`
           );
-          
-          if (showPoints || disjoint) {
-            this.svgElements.push(
-              `<circle cx="${itemX + 7}" cy="${itemY + 6}" r="2" fill="${color}"/>`
-            );
-          }
-          
+        }
+        
+        this.svgElements.push(
+          `<text x="${itemX + 20}" y="${itemY + 10}" fill="${text}" font-size="10px">${label}</text>`
+        );
+      });
+    } else {
+      // Vertical legend layout for left/right positions
+      labels.forEach((label, i) => {
+        const color = colors[i] || '#666';
+        const itemY = y + i * 18;
+        
+        this.svgElements.push(
+          `<line x1="${x}" y1="${itemY + 6}" x2="${x + 15}" y2="${itemY + 6}" stroke="${color}" stroke-width="2"/>`
+        );
+        
+        if (showPoints || disjoint) {
           this.svgElements.push(
-            `<text x="${itemX + 20}" y="${itemY + 10}" fill="${text}" font-size="10px">${seriesData.name}</text>`
+            `<circle cx="${x + 7}" cy="${itemY + 6}" r="2" fill="${color}"/>`
           );
-        });
-      } else {
-        // Vertical legend layout for left/right positions
-        this.data.forEach((seriesData, i) => {
-          const colorKey = seriesData.name || `series_${i}`;
-          const color = seriesData.color || this.colorScale(colorKey);
-          const itemY = legendY + i * 18;
-          
-          this.svgElements.push(
-            `<line x1="${legendX}" y1="${itemY + 6}" x2="${legendX + 15}" y2="${itemY + 6}" stroke="${color}" stroke-width="2"/>`
-          );
-          
-          if (showPoints || disjoint) {
-            this.svgElements.push(
-              `<circle cx="${legendX + 7}" cy="${itemY + 6}" r="2" fill="${color}"/>`
-            );
-          }
-          
-          this.svgElements.push(
-            `<text x="${legendX + 20}" y="${itemY + 10}" fill="${text}" font-size="10px">${seriesData.name}</text>`
-          );
-        });
-      }
+        }
+        
+        this.svgElements.push(
+          `<text x="${x + 20}" y="${itemY + 10}" fill="${text}" font-size="10px">${label}</text>`
+        );
+      });
     }
   }
 }
