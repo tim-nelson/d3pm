@@ -25,12 +25,15 @@ export interface BaseChartOptions {
   colors?: string[];
   theme?: 'light' | 'dark';
   forceOrigin?: boolean;
-  legendPosition?: 'right' | 'bottom';
+  legendPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left' | 'right' | 'top' | 'bottom';
+  legendOffset?: [number, number];
   xlim?: (number | null)[];
   ylim?: (number | null)[];
   preserveAspectRatio?: 'scale' | 'clip';
   tickStrategy?: 'skip' | 'rotate' | 'auto';
   aspectRatio?: 'auto' | 'equal';
+  xticks?: number;
+  yticks?: number;
 }
 
 export interface ThemeColors {
@@ -87,6 +90,7 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
       theme: this.detectTheme(),
       forceOrigin: true,
       legendPosition: 'right' as const,
+      legendOffset: [0, 0] as [number, number],
       preserveAspectRatio: 'scale' as const,
       tickStrategy: 'auto' as const,
       aspectRatio: 'auto' as const
@@ -275,6 +279,64 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
     // Estimate text width (rough approximation: 6px per character)
     const maxLabelLength = Math.max(...labels.map(label => label.length));
     return Math.max(80, maxLabelLength * 6 + 30); // 30px for icon + padding
+  }
+
+  protected calculateLegendHeight(itemCount: number): number {
+    return itemCount * 18 + 10; // 18px per item + padding
+  }
+
+  protected calculateLegendPosition(labels: string[]): { x: number; y: number; orientation: 'vertical' | 'horizontal' } {
+    const { width, height, margin } = this.dimensions;
+    const { legendPosition, legendOffset } = this.options;
+    const [offsetX, offsetY] = legendOffset;
+    
+    const legendWidth = this.calculateLegendWidth(labels);
+    const legendHeight = this.calculateLegendHeight(labels.length);
+    
+    let x: number, y: number, orientation: 'vertical' | 'horizontal' = 'vertical';
+    
+    switch (legendPosition) {
+      case 'top-left':
+        x = margin.left + 10 + offsetX;
+        y = margin.top + 10 + offsetY;
+        break;
+      case 'top-right':
+        x = width - legendWidth - 10 + offsetX;
+        y = margin.top + 10 + offsetY;
+        break;
+      case 'bottom-left':
+        x = margin.left + 10 + offsetX;
+        y = height - legendHeight - 10 + offsetY;
+        break;
+      case 'bottom-right':
+        x = width - legendWidth - 10 + offsetX;
+        y = height - legendHeight - 10 + offsetY;
+        break;
+      case 'left':
+        x = 10 + offsetX;
+        y = height / 2 - legendHeight / 2 + offsetY;
+        break;
+      case 'right':
+        x = Math.max(width - legendWidth - 10, width - 150) + offsetX;
+        y = margin.top + offsetY;
+        break;
+      case 'top':
+        orientation = 'horizontal';
+        x = width / 2 - (labels.length * 80) / 2 + offsetX; // Estimate horizontal width
+        y = 10 + offsetY;
+        break;
+      case 'bottom':
+        orientation = 'horizontal';
+        x = width / 2 - (labels.length * 80) / 2 + offsetX;
+        y = height - 30 + offsetY;
+        break;
+      default:
+        // Default to right
+        x = Math.max(width - legendWidth - 10, width - 150) + offsetX;
+        y = margin.top + offsetY;
+    }
+    
+    return { x, y, orientation };
   }
 
   protected shouldUseDynamicMargin(labels: string[]): boolean {

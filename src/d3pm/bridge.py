@@ -6,6 +6,8 @@ Handles subprocess communication and SVG generation
 import subprocess
 import json
 import os
+import base64
+from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Literal
 from dataclasses import dataclass, asdict
 
@@ -298,6 +300,77 @@ class D3DenoBridge:
             display(widget)
             return widget
         return None
+    
+    def convert_svg_to_png(self, svg_string: str, scale: float = 1.0, 
+                          dpi: Optional[float] = None) -> bytes:
+        """
+        Convert SVG string to PNG bytes using Deno canvas API.
+        
+        Args:
+            svg_string: SVG content as string
+            scale: Scale factor for output size (default: 1.0)
+            dpi: DPI for output (overrides scale if provided)
+            
+        Returns:
+            PNG image as bytes
+            
+        Raises:
+            RuntimeError: If conversion fails
+        """
+        # Validate scale and DPI parameters
+        if dpi is not None and scale != 1.0:
+            raise ValueError("Cannot specify both dpi and scale parameters")
+        
+        # Prepare conversion options
+        options = {}
+        if dpi is not None:
+            options['dpi'] = dpi
+        else:
+            options['scale'] = scale
+        
+        # Path to SvgToPng script
+        svg_to_png_script = os.path.join(self.viz_path, 'SvgToPng.ts')
+        
+        if not os.path.exists(svg_to_png_script):
+            raise FileNotFoundError(f"SvgToPng script not found: {svg_to_png_script}")
+        
+        try:
+            # Run Deno script with SVG and options
+            result = subprocess.run(
+                [self.deno_path, "run", "--allow-all", svg_to_png_script, 
+                 svg_string, json.dumps(options)],
+                capture_output=True,
+                text=True,
+                timeout=60,  # 60 second timeout for first-time npm package download
+                cwd=self.viz_path
+            )
+            
+            if result.returncode != 0:
+                error_msg = result.stderr.strip() or "Unknown error occurred"
+                raise RuntimeError(f"PNG conversion failed: {error_msg}")
+            
+            # Parse result
+            try:
+                conversion_result = json.loads(result.stdout.strip())
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"Invalid response from PNG converter: {e}")
+            
+            if not conversion_result.get('success'):
+                error_msg = conversion_result.get('error', 'Unknown conversion error')
+                raise RuntimeError(f"PNG conversion failed: {error_msg}")
+            
+            # Decode base64 PNG data
+            png_base64 = conversion_result.get('data')
+            if not png_base64:
+                raise RuntimeError("No PNG data returned from converter")
+            
+            png_bytes = base64.b64decode(png_base64)
+            return png_bytes
+            
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("PNG conversion timed out after 30 seconds")
+        except Exception as e:
+            raise RuntimeError(f"Failed to convert SVG to PNG: {str(e)}")
 
 
 
@@ -314,20 +387,28 @@ def _get_default_bridge() -> D3DenoBridge:
 
 
 # Matplotlib-style convenience functions
-def bar(categories, values, title=None, xlabel=None, ylabel=None,
-        width=320, height=240, show=False, **kwargs) -> 'Chart':
+def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
+        width=320, height=240, show=False, yticks=5, legend_position='right', 
+        legend_offset=(0, 0), **kwargs) -> 'Chart':
     """
     Create a bar chart with academic styling.
     
     Args:
         categories: Array-like category labels (strings)
         values: Array-like values for each category (numbers)
+        colors: List of colors for bars (hex codes, named colors, or mix)
+                Examples: ['red', 'blue'], ['#FF5733', '#33FF57'], ['red', '#FF5733', 'blue']
+                Available named colors: 'red', 'blue', 'green', 'orange', 'purple', 'yellow'
         title: Chart title (optional)
         xlabel: X-axis label (optional)
         ylabel: Y-axis label (optional)
-        width: Chart width in pixels (default: 600) 
-        height: Chart height in pixels (default: 400)
+        width: Chart width in pixels (default: 320) 
+        height: Chart height in pixels (default: 240)
         show: Whether to display the chart immediately
+        yticks: Number of Y-axis ticks (default: 5, 0 = no ticks)
+        legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
+                        'left', 'right', 'top', 'bottom' (default: 'right')
+        legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
         **kwargs: Additional chart options
         
     Returns:
@@ -335,7 +416,10 @@ def bar(categories, values, title=None, xlabel=None, ylabel=None,
         
     Examples:
         d3pm.bar(["A", "B", "C"], [10, 20, 15])
-        d3pm.bar(categories, values, title="Sample Data", ylabel="Count")
+        d3pm.bar(categories, values, colors=['red', 'blue', 'green'])
+        d3pm.bar(categories, values, colors=['#FF5733', '#33FF57'], title="Sample Data")
+        d3pm.bar(categories, values, yticks=0)  # No Y-axis ticks
+        d3pm.bar(categories, values, legend_position="top-left")
     """
     bridge = _get_default_bridge()
     
@@ -367,7 +451,15 @@ def bar(categories, values, title=None, xlabel=None, ylabel=None,
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, **kwargs)
+    options = _build_chart_options(config, yticks=yticks, **kwargs)
+    
+    # Add colors if provided
+    if colors is not None:
+        options['colors'] = colors
+    
+    # Add legend options
+    options['legendPosition'] = legend_position
+    options['legendOffset'] = list(legend_offset)
     
     svg = bridge.create_bar_chart(clean_data, options)
     
@@ -387,8 +479,9 @@ def bar(categories, values, title=None, xlabel=None, ylabel=None,
     return chart
 
 
-def line(x, y=None, label=None, title=None, xlabel=None, ylabel=None, 
-         width=320, height=240, show=False, **kwargs) -> 'Chart':
+def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=None, 
+         width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
+         legend_offset=(0, 0), **kwargs) -> 'Chart':
     """
     Create a line chart with academic styling.
     
@@ -397,14 +490,22 @@ def line(x, y=None, label=None, title=None, xlabel=None, ylabel=None,
             Can also be a list of x arrays for multiple series
         y: Array-like y values (optional if x contains y values)
             Can also be a list of y arrays for multiple series
+        colors: List of colors for line series (hex codes, named colors, or mix)
+                Examples: ['red', 'blue'], ['#FF5733', '#33FF57'], ['red', '#FF5733']
+                Available named colors: 'red', 'blue', 'green', 'orange', 'purple', 'yellow'
         label: Label for the line series (optional)
                Can be a list of labels for multiple series
         title: Chart title (optional)
         xlabel: X-axis label (optional) 
         ylabel: Y-axis label (optional)
-        width: Chart width in pixels (default: 600)
-        height: Chart height in pixels (default: 400)
+        width: Chart width in pixels (default: 320)
+        height: Chart height in pixels (default: 240)
         show: Whether to display the chart immediately
+        xticks: Number of X-axis ticks (default: 5, 0 = no ticks)
+        yticks: Number of Y-axis ticks (default: 5, 0 = no ticks)
+        legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
+                        'left', 'right', 'top', 'bottom' (default: 'right')
+        legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
         **kwargs: Additional chart options
         
     Returns:
@@ -412,9 +513,11 @@ def line(x, y=None, label=None, title=None, xlabel=None, ylabel=None,
         
     Examples:
         d3pm.line(x_vals, y_vals)
-        d3pm.line(x_vals, y_vals, label="Series 1", title="My Chart")
+        d3pm.line(x_vals, y_vals, colors=['red'], label="Series 1", title="My Chart")
         d3pm.line(y_vals)  # Auto-generate x values
-        d3pm.line([x1, x2], [y1, y2], label=["Series 1", "Series 2"])  # Multiple series
+        d3pm.line([x1, x2], [y1, y2], colors=['red', 'blue'], label=["Series 1", "Series 2"])
+        d3pm.line(x_vals, y_vals, xticks=0, yticks=0)  # No ticks on either axis
+        d3pm.line(x_vals, y_vals, legend_position="top-left", legend_offset=(10, 5))
     """
     bridge = _get_default_bridge()
     
@@ -478,7 +581,7 @@ def line(x, y=None, label=None, title=None, xlabel=None, ylabel=None,
         y_clean = safe_convert(y_values)
         
         # Create series data in expected format
-        series_name = label if label is not None else ""
+        series_name = label if label is not None and label.strip() != "" else ""
         clean_data = [{
             "name": series_name,
             "data": [{"x": x, "y": y} for x, y in zip(x_clean, y_clean)]
@@ -487,7 +590,15 @@ def line(x, y=None, label=None, title=None, xlabel=None, ylabel=None,
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, **kwargs)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, **kwargs)
+    
+    # Add colors if provided
+    if colors is not None:
+        options['colors'] = colors
+    
+    # Add legend options
+    options['legendPosition'] = legend_position
+    options['legendOffset'] = list(legend_offset)
     
     svg = bridge.create_line_chart(clean_data, options)
     
@@ -507,8 +618,9 @@ def line(x, y=None, label=None, title=None, xlabel=None, ylabel=None,
     return chart
 
 
-def scatter(x, y, size=None, label=None, title=None, xlabel=None, ylabel=None,
-           width=320, height=240, show=False, **kwargs) -> 'Chart':
+def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, ylabel=None,
+           width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
+           legend_offset=(0, 0), **kwargs) -> 'Chart':
     """
     Create a scatter plot with academic styling.
     
@@ -516,13 +628,21 @@ def scatter(x, y, size=None, label=None, title=None, xlabel=None, ylabel=None,
         x: Array-like x values
         y: Array-like y values
         size: Array-like size values (optional, for variable point sizes)
+        colors: List of colors for scatter points (hex codes, named colors, or mix)
+                Examples: ['red', 'blue'], ['#FF5733', '#33FF57'], ['red', '#FF5733']
+                Available named colors: 'red', 'blue', 'green', 'orange', 'purple', 'yellow'
         label: Label for the scatter series (optional)
         title: Chart title (optional)
         xlabel: X-axis label (optional)
         ylabel: Y-axis label (optional) 
-        width: Chart width in pixels (default: 600)
-        height: Chart height in pixels (default: 400)
+        width: Chart width in pixels (default: 320)
+        height: Chart height in pixels (default: 240)
         show: Whether to display the chart immediately
+        xticks: Number of X-axis ticks (default: 5, 0 = no ticks)
+        yticks: Number of Y-axis ticks (default: 5, 0 = no ticks)
+        legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
+                        'left', 'right', 'top', 'bottom' (default: 'right')
+        legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
         **kwargs: Additional chart options
         
     Returns:
@@ -530,8 +650,10 @@ def scatter(x, y, size=None, label=None, title=None, xlabel=None, ylabel=None,
         
     Examples:
         d3pm.scatter(x_vals, y_vals)
-        d3pm.scatter(x_vals, y_vals, size=sizes, label="Data Points")
-        d3pm.scatter(x_vals, y_vals, title="X vs Y", xlabel="X axis", ylabel="Y axis")
+        d3pm.scatter(x_vals, y_vals, colors=['blue'], size=sizes, label="Data Points")
+        d3pm.scatter(x_vals, y_vals, colors=['#FF5733'], title="X vs Y", xlabel="X axis")
+        d3pm.scatter(x_vals, y_vals, xticks=0, yticks=0)  # No ticks
+        d3pm.scatter(x_vals, y_vals, legend_position="bottom-right", legend_offset=(5, 5))
     """
     bridge = _get_default_bridge()
     
@@ -565,7 +687,7 @@ def scatter(x, y, size=None, label=None, title=None, xlabel=None, ylabel=None,
         data_points.append(point)
     
     # Create series data in expected format
-    series_name = label if label is not None else ""
+    series_name = label if label is not None and label.strip() != "" else ""
     clean_data = [{
         "name": series_name,
         "data": data_points
@@ -574,7 +696,15 @@ def scatter(x, y, size=None, label=None, title=None, xlabel=None, ylabel=None,
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, **kwargs)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, **kwargs)
+    
+    # Add colors if provided
+    if colors is not None:
+        options['colors'] = colors
+    
+    # Add legend options
+    options['legendPosition'] = legend_position
+    options['legendOffset'] = list(legend_offset)
     
     svg = bridge.create_scatter_chart(clean_data, options)
     
@@ -594,20 +724,29 @@ def scatter(x, y, size=None, label=None, title=None, xlabel=None, ylabel=None,
     return chart
 
 
-def hist(values, bins=20, title=None, xlabel=None, ylabel=None,
-         width=320, height=240, show=False, **kwargs) -> 'Chart':
+def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
+         width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
+         legend_offset=(0, 0), **kwargs) -> 'Chart':
     """
     Create a histogram chart with continuous x-axis and no gaps between bars.
     
     Args:
         values: Array-like data values to bin
         bins: Number of bins (default: 20) or array of bin edges
+        colors: List of colors for histogram bars (hex codes, named colors, or mix)
+                Examples: ['red'], ['#FF5733'], ['blue', 'green'] for multiple colors
+                Available named colors: 'red', 'blue', 'green', 'orange', 'purple', 'yellow'
         title: Chart title (optional)
         xlabel: X-axis label (optional)
         ylabel: Y-axis label (optional)
-        width: Chart width in pixels (default: 600)
-        height: Chart height in pixels (default: 400)
+        width: Chart width in pixels (default: 320)
+        height: Chart height in pixels (default: 240)
         show: Whether to display the chart immediately
+        xticks: Number of X-axis ticks (default: 5, 0 = no ticks)
+        yticks: Number of Y-axis ticks (default: 5, 0 = no ticks)
+        legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
+                        'left', 'right', 'top', 'bottom' (default: 'right')
+        legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
         **kwargs: Additional chart options
         
     Returns:
@@ -615,8 +754,10 @@ def hist(values, bins=20, title=None, xlabel=None, ylabel=None,
         
     Examples:
         d3pm.hist(data_values)
-        d3pm.hist(data_values, bins=30, title="Distribution")
+        d3pm.hist(data_values, colors=['green'], bins=30, title="Distribution")
+        d3pm.hist(data_values, colors=['#FF5733'], xticks=0, yticks=0)  # No ticks, custom color
         d3pm.hist(data_values, bins=[0, 1, 2, 5, 10])  # Custom bin edges
+        d3pm.hist(data_values, legend_position="bottom-left", legend_offset=(0, -10))
     """
     bridge = _get_default_bridge()
     
@@ -673,7 +814,15 @@ def hist(values, bins=20, title=None, xlabel=None, ylabel=None,
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, **kwargs)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, **kwargs)
+    
+    # Add colors if provided
+    if colors is not None:
+        options['colors'] = colors
+    
+    # Add legend options
+    options['legendPosition'] = legend_position
+    options['legendOffset'] = list(legend_offset)
     
     svg = bridge.create_histogram_chart(clean_data, options)
     
@@ -902,12 +1051,42 @@ class Chart:
         else:
             raise ValueError(f"Overlay not supported for chart type: {self.chart_type}")
         
-        # Merge options, preferring the first chart's settings but combining titles
+        # Merge options, preferring the first chart's settings but combining titles and colors
         merged_options = self.options.copy()
         if other.options.get('title') and self.options.get('title'):
             merged_options['title'] = f"{self.options['title']} & {other.options['title']}"
         elif other.options.get('title') and not self.options.get('title'):
             merged_options['title'] = other.options['title']
+        
+        # Merge colors from both charts
+        colors1 = self.options.get('colors', [])
+        colors2 = other.options.get('colors', [])
+        
+        # Build combined color array for all series
+        # Count series from each chart
+        series1_count = len(self.data) if self.data else 1
+        series2_count = len(other.data) if other.data else 1
+        
+        merged_colors = []
+        
+        # Add colors for first chart's series
+        if colors1:
+            merged_colors.extend(colors1)
+        else:
+            # Use default colors for first chart's series
+            default_colors = ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4']  # Base defaults
+            merged_colors.extend(default_colors[:series1_count])
+        
+        # Add colors for second chart's series  
+        if colors2:
+            merged_colors.extend(colors2)
+        else:
+            # Use remaining default colors for second chart's series
+            default_colors = ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4']
+            start_idx = len(merged_colors)
+            merged_colors.extend(default_colors[start_idx:start_idx + series2_count])
+        
+        merged_options['colors'] = merged_colors
         
         # Use the larger dimensions
         width = max(self.width, other.width)
@@ -995,6 +1174,146 @@ console.log(JSON.stringify({{
             # Clean up temporary file
             if os.path.exists(temp_script_path):
                 os.remove(temp_script_path)
+    
+    def _extract_svg_dimensions(self):
+        """Extract width and height from SVG string. Returns (width, height) or None."""
+        import re
+        try:
+            # Look for width and height attributes in SVG tag
+            svg_match = re.search(r'<svg[^>]*>', self.svg)
+            if not svg_match:
+                return None
+            
+            svg_tag = svg_match.group(0)
+            
+            # Extract width and height attributes
+            width_match = re.search(r'width\s*=\s*["\']?(\d+(?:\.\d+)?)["\']?', svg_tag)
+            height_match = re.search(r'height\s*=\s*["\']?(\d+(?:\.\d+)?)["\']?', svg_tag)
+            
+            if width_match and height_match:
+                return (int(float(width_match.group(1))), int(float(height_match.group(1))))
+            
+            # Fallback: try to extract from viewBox
+            viewbox_match = re.search(r'viewBox\s*=\s*["\']?[\d\.\s]*\s+[\d\.\s]*\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)["\']?', svg_tag)
+            if viewbox_match:
+                return (int(float(viewbox_match.group(1))), int(float(viewbox_match.group(2))))
+            
+            return None
+        except:
+            return None
+    
+    def save_svg(self, filepath: str):
+        """
+        Save chart as SVG file.
+        
+        Args:
+            filepath: Path to save the SVG file (relative or absolute)
+        
+        Example:
+            chart.save_svg("figure.svg")
+            chart.save_svg("results/chart.svg")
+        """
+        # Resolve and validate file path
+        full_path = Path(filepath).expanduser().resolve()
+        
+        # Create parent directories if they don't exist
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # Write SVG content to file
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(self.svg)
+        except Exception as e:
+            raise RuntimeError(f"Failed to save SVG to {full_path}: {str(e)}")
+    
+    def save_png(self, filepath: str, scale: float = 1.0, dpi: Optional[float] = None):
+        """
+        Save chart as PNG file.
+        
+        Args:
+            filepath: Path to save the PNG file (relative or absolute)
+            scale: Scale factor for output size (default: 1.0, mutually exclusive with dpi)
+            dpi: DPI for output (overrides scale if provided, mutually exclusive with scale)
+        
+        Examples:
+            chart.save_png("figure.png")                # Native resolution
+            chart.save_png("figure.png", scale=2.0)     # 2x resolution
+            chart.save_png("figure.png", dpi=300)       # Publication quality
+        """
+        # Validate parameters
+        if dpi is not None and scale != 1.0:
+            raise ValueError("Cannot specify both dpi and scale parameters")
+        
+        # Resolve and validate file path
+        full_path = Path(filepath).expanduser().resolve()
+        
+        # Create parent directories if they don't exist
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # Get bridge instance and convert to PNG
+            bridge = _get_default_bridge()
+            png_bytes = bridge.convert_svg_to_png(self.svg, scale=scale, dpi=dpi)
+            
+            # Write PNG bytes to file
+            with open(full_path, 'wb') as f:
+                f.write(png_bytes)
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "stack" in error_msg.lower() or "maximum call stack" in error_msg.lower():
+                # Calculate suggested max scale
+                svg_dims = self._extract_svg_dimensions()
+                if svg_dims:
+                    max_scale = min(4096 // svg_dims[0], 4096 // svg_dims[1])
+                    max_scale = max(1, max_scale)  # At least 1
+                    raise RuntimeError(f"Image too large for scale={scale}. Try scale={max_scale} or smaller.\n"
+                                     f"Current dimensions would be {svg_dims[0]*scale}×{svg_dims[1]*scale}, max supported is 4096×4096.\n"
+                                     f"Or use SVG instead: chart.save_svg('{full_path.with_suffix('.svg')}')")
+                else:
+                    raise RuntimeError(f"Image too large for scale={scale}. Try a smaller scale factor.\n"
+                                     f"Or use SVG instead: chart.save_svg('{full_path.with_suffix('.svg')}')")
+            elif "resvg" in error_msg.lower() or "npm:" in error_msg:
+                raise RuntimeError(f"PNG export requires @resvg/resvg-js. This will be downloaded automatically on first use.\n"
+                                 f"If the error persists, try:\n"
+                                 f"  deno cache npm:@resvg/resvg-js\n"
+                                 f"Or use SVG instead:\n"
+                                 f"  chart.save_svg('{full_path.with_suffix('.svg')}')")
+            else:
+                raise RuntimeError(f"Failed to save PNG to {full_path}: {error_msg}")
+    
+    def save(self, filepath: str, **kwargs):
+        """
+        Save chart with format auto-detected from file extension.
+        
+        Args:
+            filepath: Path to save the file (extension determines format)
+            **kwargs: Additional arguments passed to format-specific save method
+        
+        Supported formats:
+            .svg - Scalable Vector Graphics
+            .png - Portable Network Graphics
+        
+        Examples:
+            chart.save("figure.svg")                    # SVG format
+            chart.save("figure.png")                    # PNG format 
+            chart.save("figure.png", dpi=300)          # PNG with 300 DPI
+            chart.save("figure.png", scale=2.0)        # PNG at 2x scale
+        """
+        file_path = Path(filepath)
+        extension = file_path.suffix.lower()
+        
+        if extension == '.svg':
+            # Only pass kwargs that svg save method accepts (none currently)
+            svg_kwargs = {}
+            self.save_svg(filepath, **svg_kwargs)
+        elif extension == '.png':
+            # Pass kwargs to PNG save method
+            self.save_png(filepath, **kwargs)
+        else:
+            supported_formats = ['.svg', '.png']
+            raise ValueError(f"Unsupported file format '{extension}'. "
+                           f"Supported formats: {', '.join(supported_formats)}")
 
 
 

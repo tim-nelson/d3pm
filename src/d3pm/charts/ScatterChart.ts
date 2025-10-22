@@ -54,7 +54,7 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
   }
 
   protected getColorDomain(): string[] {
-    return this.data.map(s => s.name);
+    return this.data.map((s, i) => s.name || `series_${i}`);
   }
 
   private createScales(): void {
@@ -128,12 +128,16 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
   protected renderXAxis(): void {
     const { innerHeight } = this.dimensions;
     const { axis, text } = this.themeColors;
+    const { xticks = 5 } = this.options;
+    
+    // Skip rendering if xticks is 0
+    if (xticks === 0) return;
     
     // Calculate data range for smart formatting
     const xExtent = extent(this.allData, d => d.x)!;
     const dataRange = xExtent[1] - xExtent[0];
     
-    this.xScale.ticks(5).forEach((tick: number) => {
+    this.xScale.ticks(xticks).forEach((tick: number) => {
       const x = this.xScale(tick);
       this.svgElements.push(
         `<line x1="${x}" y1="${innerHeight}" x2="${x}" y2="${innerHeight + 6}" stroke="${axis}" stroke-width="1"/>`
@@ -146,12 +150,16 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
 
   protected renderYAxis(): void {
     const { text, axis } = this.themeColors;
+    const { yticks = 5 } = this.options;
+    
+    // Skip rendering if yticks is 0
+    if (yticks === 0) return;
     
     // Calculate data range for smart formatting
     const yExtent = extent(this.allData, d => d.y)!;
     const dataRange = yExtent[1] - yExtent[0];
     
-    this.yScale.ticks(5).forEach((tick: number) => {
+    this.yScale.ticks(yticks).forEach((tick: number) => {
       const y = this.yScale(tick);
       this.svgElements.push(
         `<line x1="-6" y1="${y}" x2="0" y2="${y}" stroke="${axis}" stroke-width="1"/>`
@@ -166,8 +174,9 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
     const { pointSize, opacity } = this.options;
     const { text } = this.themeColors;
 
-    this.data.forEach((seriesData) => {
-      const seriesColor = seriesData.color || this.colorScale(seriesData.name);
+    this.data.forEach((seriesData, i) => {
+      const colorKey = seriesData.name || `series_${i}`;
+      const seriesColor = seriesData.color || this.colorScale(colorKey);
 
       seriesData.data.forEach(point => {
         const cx = this.xScale(point.x);
@@ -191,27 +200,46 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
   }
 
   protected renderLegend(): void {
-    if (this.data.length > 1) {
-      const { width, margin } = this.dimensions;
+    const hasNamedSeries = this.data.some(s => s.name && s.name.trim() !== "");
+    if (this.data.length > 1 && hasNamedSeries) {
       const { text } = this.themeColors;
       const { opacity } = this.options;
 
       const labels = this.data.map(s => s.name);
-      const legendWidth = this.calculateLegendWidth(labels);
-      const legendX = Math.max(width - legendWidth - 10, width - 150);
+      const { x: legendX, y: legendY, orientation } = this.calculateLegendPosition(labels);
 
-      this.data.forEach((seriesData, i) => {
-        const color = seriesData.color || this.colorScale(seriesData.name);
-        const legendY = margin.top + i * 18;
-        
-        this.svgElements.push(
-          `<circle cx="${legendX + 6}" cy="${legendY + 6}" r="4" fill="${color}" opacity="${opacity}"/>`
-        );
-        
-        this.svgElements.push(
-          `<text x="${legendX + 15}" y="${legendY + 10}" fill="${text}" font-size="10px">${seriesData.name}</text>`
-        );
-      });
+      if (orientation === 'horizontal') {
+        // Horizontal legend layout for top/bottom positions
+        this.data.forEach((seriesData, i) => {
+          const colorKey = seriesData.name || `series_${i}`;
+          const color = seriesData.color || this.colorScale(colorKey);
+          const itemX = legendX + i * 80; // 80px spacing between items
+          const itemY = legendY;
+          
+          this.svgElements.push(
+            `<circle cx="${itemX + 6}" cy="${itemY + 6}" r="4" fill="${color}" opacity="${opacity}"/>`
+          );
+          
+          this.svgElements.push(
+            `<text x="${itemX + 15}" y="${itemY + 10}" fill="${text}" font-size="10px">${seriesData.name}</text>`
+          );
+        });
+      } else {
+        // Vertical legend layout for left/right positions
+        this.data.forEach((seriesData, i) => {
+          const colorKey = seriesData.name || `series_${i}`;
+          const color = seriesData.color || this.colorScale(colorKey);
+          const itemY = legendY + i * 18;
+          
+          this.svgElements.push(
+            `<circle cx="${legendX + 6}" cy="${itemY + 6}" r="4" fill="${color}" opacity="${opacity}"/>`
+          );
+          
+          this.svgElements.push(
+            `<text x="${legendX + 15}" y="${itemY + 10}" fill="${text}" font-size="10px">${seriesData.name}</text>`
+          );
+        });
+      }
     }
   }
 }
