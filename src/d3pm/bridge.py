@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Literal
 from dataclasses import dataclass, asdict
 
+# Optional GraphViz import for layout positioning
+try:
+    import graphviz
+    GRAPHVIZ_AVAILABLE = True
+except ImportError:
+    graphviz = None
+    GRAPHVIZ_AVAILABLE = False
+
 # Optional imports for Jupyter notebook support
 try:
     import ipywidgets as widgets
@@ -156,7 +164,8 @@ class D3DenoBridge:
             "line": "LineChart.ts", 
             "scatter": "ScatterChart.ts",
             "histogram": "HistogramChart.ts",
-            "graph": "GraphChart.ts"
+            "graph": "GraphChart.ts",
+            "graphviz": "GraphChart.ts"  # Use new GraphChart for GraphViz data
         }
         
         if script_name not in script_mapping:
@@ -269,6 +278,21 @@ class D3DenoBridge:
         """
         chart_input = {"data": data, "options": options or {}}
         return self._call_deno_script("graph", chart_input)
+    
+    def create_graphviz_chart(self, data: Dict[str, Any], 
+                             options: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Create a graph chart from GraphViz data using the new lightweight wrapper.
+        
+        Args:
+            data: GraphViz data: {"nodes": [GraphVizNode...], "edges": [GraphVizEdge...], ...}
+            options: Chart options (title, colors, size, etc.)
+            
+        Returns:
+            SVG string
+        """
+        chart_input = {"data": data, "options": options or {}}
+        return self._call_deno_script("graphviz", chart_input)
     
     def display_svg(self, svg_string: str, width: int = 600, height: int = 400):
         """
@@ -389,7 +413,7 @@ def _get_default_bridge() -> D3DenoBridge:
 # Matplotlib-style convenience functions
 def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
         width=320, height=240, show=False, yticks=5, legend_position='right', 
-        legend_offset=(0, 0), **kwargs) -> 'Chart':
+        legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
     """
     Create a bar chart with academic styling.
     
@@ -409,6 +433,7 @@ def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
         legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
                         'left', 'right', 'top', 'bottom' (default: 'right')
         legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
+        legend_style: Legend style - 'standard' (positioned) or 'tags' (horizontal above chart) (default: 'standard')
         **kwargs: Additional chart options
         
     Returns:
@@ -420,6 +445,7 @@ def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
         d3pm.bar(categories, values, colors=['#FF5733', '#33FF57'], title="Sample Data")
         d3pm.bar(categories, values, yticks=0)  # No Y-axis ticks
         d3pm.bar(categories, values, legend_position="top-left")
+        d3pm.bar(categories, values, legend_style="tags")  # GitHub-style tags
     """
     bridge = _get_default_bridge()
     
@@ -460,6 +486,7 @@ def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
     # Add legend options
     options['legendPosition'] = legend_position
     options['legendOffset'] = list(legend_offset)
+    options['legendStyle'] = legend_style
     
     svg = bridge.create_bar_chart(clean_data, options)
     
@@ -481,7 +508,7 @@ def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
 
 def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=None, 
          width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
-         legend_offset=(0, 0), **kwargs) -> 'Chart':
+         legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
     """
     Create a line chart with academic styling.
     
@@ -506,6 +533,7 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
         legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
                         'left', 'right', 'top', 'bottom' (default: 'right')
         legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
+        legend_style: Legend style - 'standard' (positioned) or 'tags' (horizontal above chart) (default: 'standard')
         **kwargs: Additional chart options
         
     Returns:
@@ -518,6 +546,7 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
         d3pm.line([x1, x2], [y1, y2], colors=['red', 'blue'], label=["Series 1", "Series 2"])
         d3pm.line(x_vals, y_vals, xticks=0, yticks=0)  # No ticks on either axis
         d3pm.line(x_vals, y_vals, legend_position="top-left", legend_offset=(10, 5))
+        d3pm.line([x1, x2], [y1, y2], label=["A", "B"], legend_style="tags")  # Tag-style legend
     """
     bridge = _get_default_bridge()
     
@@ -581,7 +610,7 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
         y_clean = safe_convert(y_values)
         
         # Create series data in expected format
-        series_name = label if label is not None and label.strip() != "" else ""
+        series_name = label if label is not None and str(label).strip() != "" else ""
         clean_data = [{
             "name": series_name,
             "data": [{"x": x, "y": y} for x, y in zip(x_clean, y_clean)]
@@ -599,6 +628,7 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
     # Add legend options
     options['legendPosition'] = legend_position
     options['legendOffset'] = list(legend_offset)
+    options['legendStyle'] = legend_style
     
     svg = bridge.create_line_chart(clean_data, options)
     
@@ -620,7 +650,7 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
 
 def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, ylabel=None,
            width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
-           legend_offset=(0, 0), **kwargs) -> 'Chart':
+           legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
     """
     Create a scatter plot with academic styling.
     
@@ -643,6 +673,7 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
         legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
                         'left', 'right', 'top', 'bottom' (default: 'right')
         legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
+        legend_style: Legend style - 'standard' (positioned) or 'tags' (horizontal above chart) (default: 'standard')
         **kwargs: Additional chart options
         
     Returns:
@@ -654,6 +685,7 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
         d3pm.scatter(x_vals, y_vals, colors=['#FF5733'], title="X vs Y", xlabel="X axis")
         d3pm.scatter(x_vals, y_vals, xticks=0, yticks=0)  # No ticks
         d3pm.scatter(x_vals, y_vals, legend_position="bottom-right", legend_offset=(5, 5))
+        d3pm.scatter(x_vals, y_vals, label="Points", legend_style="tags")  # Tag-style legend
     """
     bridge = _get_default_bridge()
     
@@ -687,7 +719,7 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
         data_points.append(point)
     
     # Create series data in expected format
-    series_name = label if label is not None and label.strip() != "" else ""
+    series_name = label if label is not None and str(label).strip() != "" else ""
     clean_data = [{
         "name": series_name,
         "data": data_points
@@ -705,6 +737,7 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
     # Add legend options
     options['legendPosition'] = legend_position
     options['legendOffset'] = list(legend_offset)
+    options['legendStyle'] = legend_style
     
     svg = bridge.create_scatter_chart(clean_data, options)
     
@@ -726,7 +759,7 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
 
 def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
          width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
-         legend_offset=(0, 0), **kwargs) -> 'Chart':
+         legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
     """
     Create a histogram chart with continuous x-axis and no gaps between bars.
     
@@ -747,6 +780,7 @@ def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
         legend_position: Legend position - 'top-left', 'top-right', 'bottom-left', 'bottom-right', 
                         'left', 'right', 'top', 'bottom' (default: 'right')
         legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
+        legend_style: Legend style - 'standard' (positioned) or 'tags' (horizontal above chart) (default: 'standard')
         **kwargs: Additional chart options
         
     Returns:
@@ -758,6 +792,7 @@ def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
         d3pm.hist(data_values, colors=['#FF5733'], xticks=0, yticks=0)  # No ticks, custom color
         d3pm.hist(data_values, bins=[0, 1, 2, 5, 10])  # Custom bin edges
         d3pm.hist(data_values, legend_position="bottom-left", legend_offset=(0, -10))
+        d3pm.hist(data_values, legend_style="tags")  # Tag-style legend
     """
     bridge = _get_default_bridge()
     
@@ -823,6 +858,7 @@ def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
     # Add legend options
     options['legendPosition'] = legend_position
     options['legendOffset'] = list(legend_offset)
+    options['legendStyle'] = legend_style
     
     svg = bridge.create_histogram_chart(clean_data, options)
     
@@ -842,29 +878,144 @@ def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
     return chart
 
 
-def graph(nodes: List[Node], edges: List[Edge], layout='reverse', title=None, 
-          width=None, height=None, show=False, **kwargs) -> 'Chart':
+def _calculate_graphviz_positions(nodes: List[Node], edges: List[Edge], engine: str = 'dot', 
+                                  graph_attr: Optional[Dict[str, str]] = None,
+                                  node_attr: Optional[Dict[str, str]] = None,
+                                  edge_attr: Optional[Dict[str, str]] = None) -> List[Node]:
     """
-    Create a graph/network visualization with nodes and edges.
+    Use GraphViz to calculate node positions, return nodes with x,y coordinates.
     
     Args:
-        nodes: List of Node objects defining graph vertices
-        edges: List of Edge objects defining graph connections  
-        layout: Layout algorithm - 'reverse' for structured flow, 'force' for interactive
+        nodes: List of Node objects
+        edges: List of Edge objects  
+        engine: GraphViz layout engine ('dot', 'neato', 'circo', 'fdp', 'sfdp', 'twopi')
+        graph_attr: Graph attributes (e.g., {'rankdir': 'LR'})
+        node_attr: Default node attributes
+        edge_attr: Default edge attributes
+        
+    Returns:
+        List of Node objects with updated x,y coordinates
+    """
+    if not GRAPHVIZ_AVAILABLE:
+        raise ImportError("GraphViz library not available. Install with: pip install graphviz")
+    
+    # Create GraphViz Digraph
+    dot = graphviz.Digraph(engine=engine)
+    
+    # Apply graph attributes
+    if graph_attr:
+        dot.attr('graph', **graph_attr)
+    
+    # Apply default node attributes
+    if node_attr:
+        dot.attr('node', **node_attr)
+    
+    # Apply default edge attributes
+    if edge_attr:
+        dot.attr('edge', **edge_attr)
+    
+    # Add nodes to GraphViz graph
+    for node in nodes:
+        # Convert d3pm shape to GraphViz shape
+        gv_shape = 'box' if node.shape == 'rect' else 'circle'
+        dot.node(node.id, label=node.text, shape=gv_shape)
+    
+    # Add edges to GraphViz graph
+    for edge in edges:
+        label = edge.label if edge.label else ''
+        dot.edge(edge.source, edge.target, label=label)
+    
+    # Render with position information
+    # Use 'json' format to get precise coordinates
+    try:
+        json_output = dot.pipe(format='json', encoding='utf-8')
+        layout_data = json.loads(json_output)
+        
+        # Extract node positions from GraphViz output
+        positioned_nodes = []
+        node_map = {node.id: node for node in nodes}
+        
+        # Parse GraphViz coordinate data
+        for gv_node in layout_data.get('objects', []):
+            node_id = gv_node.get('name')
+            if node_id in node_map:
+                original_node = node_map[node_id]
+                
+                # Extract position (GraphViz format: "x,y")
+                pos_str = gv_node.get('pos', '0,0')
+                x_str, y_str = pos_str.split(',')
+                x = float(x_str)
+                y = float(y_str)
+                
+                # GraphViz uses bottom-left origin, we need top-left
+                # Get bounding box to flip Y coordinate
+                bbox = layout_data.get('bb', '0,0,100,100')
+                _, y_min, _, y_max = map(float, bbox.split(','))
+                flipped_y = (y_max - y_min) - (y - y_min)
+                
+                # Create new Node with position
+                positioned_node = Node(
+                    id=original_node.id,
+                    text=original_node.text,
+                    shape=original_node.shape,
+                    x=x,
+                    y=flipped_y,
+                    color=original_node.color,
+                    tooltip=original_node.tooltip
+                )
+                positioned_nodes.append(positioned_node)
+        
+        return positioned_nodes
+        
+    except Exception as e:
+        raise RuntimeError(f"GraphViz positioning failed: {e}")
+
+
+def graph(nodes_or_digraph, edges=None, layout='reverse', title=None, 
+          width=None, height=None, show=False, graph_attr=None, node_attr=None, 
+          edge_attr=None, **kwargs) -> 'Chart':
+    """
+    Create a graph/network visualization from nodes and edges OR from a GraphViz Digraph.
+    
+    Args:
+        nodes_or_digraph: Either a List of Node objects OR a GraphViz Digraph object
+        edges: List of Edge objects (required when using Node objects, ignored for GraphViz)
+        layout: Layout algorithm - 'reverse', 'force' for d3pm layouts, or GraphViz engines: 'dot', 'neato', 'circo', 'fdp', 'sfdp', 'twopi'
         title: Chart title (optional)
         width: Chart width in pixels (None for auto-sizing)
         height: Chart height in pixels (None for auto-sizing) 
         show: Whether to display the chart immediately
+        graph_attr: Dict of GraphViz graph attributes (e.g., {'rankdir': 'LR'})
+        node_attr: Dict of default GraphViz node attributes
+        edge_attr: Dict of default GraphViz edge attributes
         **kwargs: Additional chart options
         
     Returns:
         Chart object with composition operators (+, *, /)
         
     Examples:
+        # Using Node/Edge objects:
         nodes = [Node("a", "2.0", "rect"), Node("op", "+", "circle"), Node("b", "5.0", "rect")]
         edges = [Edge("a", "op"), Edge("op", "b")]
         d3pm.graph(nodes, edges, layout='fixed', title="Computation Graph")
+        
+        # Using GraphViz Digraph:
+        dot = graphviz.Digraph()
+        dot.node('a', '2.0', shape='box')
+        dot.node('op', '+', shape='circle')
+        dot.edge('a', 'op')
+        d3pm.graph(dot, title="GraphViz Example")
     """
+    # Dispatch based on input type
+    if hasattr(nodes_or_digraph, 'pipe'):
+        # GraphViz Digraph object - delegate to graph_from_graphviz
+        return graph_from_graphviz(nodes_or_digraph, title=title, width=width, height=height, show=show, **kwargs)
+    
+    # Node/Edge objects - continue with original implementation
+    nodes = nodes_or_digraph
+    if edges is None:
+        raise ValueError("When using Node objects, edges parameter is required")
+    
     bridge = _get_default_bridge()
     
     # Validate inputs
@@ -878,8 +1029,23 @@ def graph(nodes: List[Node], edges: List[Edge], layout='reverse', title=None,
         if edge.target not in node_ids:
             raise ValueError(f"Edge target '{edge.target}' not found in nodes")
     
+    # Check if GraphViz layout is requested
+    graphviz_layouts = ['dot', 'neato', 'circo', 'fdp', 'sfdp', 'twopi']
+    if layout in graphviz_layouts:
+        # Use GraphViz for positioning
+        positioned_nodes = _calculate_graphviz_positions(
+            nodes, edges, engine=layout,
+            graph_attr=graph_attr,
+            node_attr=node_attr,
+            edge_attr=edge_attr
+        )
+        nodes_to_use = positioned_nodes
+    else:
+        # Use original nodes for d3pm layouts
+        nodes_to_use = nodes
+    
     # Convert Node and Edge objects to dictionaries
-    nodes_data = [asdict(node) for node in nodes]
+    nodes_data = [asdict(node) for node in nodes_to_use]
     edges_data = [asdict(edge) for edge in edges]
     
     # Create data in expected format
@@ -909,6 +1075,141 @@ def graph(nodes: List[Node], edges: List[Edge], layout='reverse', title=None,
         chart.show()
     
     return chart
+
+
+def graph_from_graphviz(digraph, title=None, width=None, height=None, show=False, **kwargs) -> 'Chart':
+    """
+    Create a graph visualization directly from a GraphViz Digraph object.
+    This is a lightweight wrapper that uses GraphViz for positioning and d3pm for visual styling.
+    
+    Args:
+        digraph: A graphviz.Digraph object
+        title: Chart title (optional)
+        width: Chart width in pixels (None for auto-sizing)
+        height: Chart height in pixels (None for auto-sizing) 
+        show: Whether to display the chart immediately
+        **kwargs: Additional chart options
+        
+    Returns:
+        Chart object with composition operators (+, *, /)
+        
+    Examples:
+        dot = graphviz.Digraph()
+        dot.attr(rankdir='LR')
+        dot.node('a', '2.0', shape='box')
+        dot.node('op', '+', shape='circle')
+        dot.edge('a', 'op')
+        chart = d3pm.graph(dot, title="GraphViz Example")
+    """
+    if not GRAPHVIZ_AVAILABLE:
+        raise ImportError("GraphViz is required for graph_from_graphviz. Install with: pip install graphviz")
+    
+    if not hasattr(digraph, 'pipe'):
+        raise TypeError("Expected a graphviz.Digraph object")
+    
+    # Extract GraphViz data as JSON
+    try:
+        json_output = digraph.pipe(format='json', encoding='utf-8')
+        graphviz_data = json.loads(json_output)
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract GraphViz JSON data: {e}")
+    
+    # Convert GraphViz JSON to our expected format
+    clean_data = _convert_graphviz_json_to_d3pm_format(graphviz_data)
+    
+    bridge = _get_default_bridge()
+    
+    # Build options using shared configuration
+    config = ChartConfig(title=title, width=width, height=height, show=show)
+    options = _build_chart_options(config, **kwargs)
+    # Don't override layout - use whatever GraphViz determined
+    
+    # Use the new GraphChart for GraphViz rendering
+    svg = bridge.create_graphviz_chart(clean_data, options)
+    
+    # Create Chart object with metadata for composition
+    chart = Chart(
+        data=clean_data,
+        chart_type='graphviz',
+        options=options,
+        svg=svg,
+        width=width,
+        height=height
+    )
+    
+    if show:
+        chart.show()
+    
+    return chart
+
+
+def _convert_graphviz_json_to_d3pm_format(graphviz_data: dict) -> dict:
+    """Convert GraphViz JSON output to d3pm GraphChart format."""
+    
+    
+    # Extract nodes from GraphViz objects
+    nodes = []
+    edges = []
+    
+    # Extract nodes from GraphViz objects array
+    for obj in graphviz_data.get('objects', []):
+        if obj.get('_gvid') is not None:  # This is a node
+            node_data = {
+                'id': obj.get('name', str(obj.get('_gvid'))),
+                'label': obj.get('label', obj.get('name', '')),
+                'shape': obj.get('shape', 'ellipse'),
+                'pos': f"{obj.get('pos', '0,0')}",  # x,y coordinates
+                'width': str(obj.get('width', '1.0')),
+                'height': str(obj.get('height', '1.0')),
+            }
+            
+            # Add color if specified
+            if 'color' in obj:
+                node_data['color'] = obj['color']
+            if 'style' in obj:
+                node_data['style'] = obj['style']
+            
+            nodes.append(node_data)
+    
+    # Create mapping from GraphViz internal IDs to node names for edges
+    gvid_to_name = {}
+    for obj in graphviz_data.get('objects', []):
+        if obj.get('_gvid') is not None:
+            gvid_to_name[obj.get('_gvid')] = obj.get('name', str(obj.get('_gvid')))
+    
+    # Extract edges from GraphViz top-level edges array
+    for edge_obj in graphviz_data.get('edges', []):
+        # Convert GraphViz internal IDs to actual node names
+        tail_id = edge_obj.get('tail', edge_obj.get('_tail', ''))
+        head_id = edge_obj.get('head', edge_obj.get('_head', ''))
+        
+        edge_data = {
+            'source': gvid_to_name.get(tail_id, str(tail_id)),
+            'target': gvid_to_name.get(head_id, str(head_id)),
+            'pos': edge_obj.get('pos', ''),  # Spline path
+        }
+        
+        # Add label if specified
+        if 'label' in edge_obj:
+            edge_data['label'] = edge_obj['label']
+            
+        edges.append(edge_data)
+    
+    # Extract graph-level attributes
+    graph_attrs = {}
+    if 'bb' in graphviz_data:
+        graph_attrs['bb'] = graphviz_data['bb']
+    if 'rankdir' in graphviz_data:
+        graph_attrs['rankdir'] = graphviz_data['rankdir']
+    if 'layout' in graphviz_data:
+        graph_attrs['layout'] = graphviz_data['layout']
+    
+    
+    return {
+        'nodes': nodes,
+        'edges': edges,
+        **graph_attrs
+    }
 
 
 class Chart:
@@ -962,6 +1263,10 @@ class Chart:
             self._svg = bridge.create_scatter_chart(self.data, self.options)
         elif self.chart_type == 'hist':
             self._svg = bridge.create_histogram_chart(self.data, self.options)
+        elif self.chart_type == 'graph':
+            self._svg = bridge.create_graph_chart(self.data, self.options)
+        elif self.chart_type == 'graphviz':
+            self._svg = bridge.create_graphviz_chart(self.data, self.options)
         else:
             raise ValueError(f"Unknown chart type: {self.chart_type}")
     

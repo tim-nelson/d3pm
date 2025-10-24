@@ -75,8 +75,12 @@ export class BarChart extends BaseChart<BarData[], BarChartOptions> {
 
   protected renderYAxis(): void {
     const { text, axis } = this.themeColors;
+    const { yticks = 5 } = this.options;
     
-    this.yScale.ticks(5).forEach((tick: number) => {
+    // Skip rendering if yticks is 0
+    if (yticks === 0) return;
+    
+    this.yScale.ticks(yticks).forEach((tick: number) => {
       const y = this.yScale(tick);
       this.svgElements.push(
         `<line x1="-6" y1="${y}" x2="0" y2="${y}" stroke="${axis}" stroke-width="1"/>`

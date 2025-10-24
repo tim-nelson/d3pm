@@ -180,21 +180,27 @@ export class HistogramChart extends BaseChart<HistogramData[], HistogramChartOpt
     }
 
     // Add processed x-axis ticks
-    processedTicks.forEach(tick => {
-      this.svgElements.push(tick);
-    });
+    const { xticks = 5 } = this.options;
+    if (xticks > 0) {
+      processedTicks.forEach(tick => {
+        this.svgElements.push(tick);
+      });
+    }
 
     // Y-axis ticks
-    const yTicks = this.yScale.ticks(5);
-    yTicks.forEach((tick: number) => {
-      const y = this.yScale(tick);
-      this.svgElements.push(`
-        <g transform="translate(0, ${y})">
-          <line x1="-5" x2="0" stroke="${axis}" stroke-width="1"/>
-          <text x="-10" y="4" text-anchor="end" fill="${text}" font-size="12">${tick}</text>
-        </g>
-      `);
-    });
+    const { yticks = 5 } = this.options;
+    if (yticks > 0) {
+      const yTicks = this.yScale.ticks(yticks);
+      yTicks.forEach((tick: number) => {
+        const y = this.yScale(tick);
+        this.svgElements.push(`
+          <g transform="translate(0, ${y})">
+            <line x1="-5" x2="0" stroke="${axis}" stroke-width="1"/>
+            <text x="-10" y="4" text-anchor="end" fill="${text}" font-size="12">${tick}</text>
+          </g>
+        `);
+      });
+    }
   }
 }
 
