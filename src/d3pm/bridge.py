@@ -165,7 +165,8 @@ class D3DenoBridge:
             "scatter": "ScatterChart.ts",
             "histogram": "HistogramChart.ts",
             "graph": "GraphChart.ts",
-            "graphviz": "GraphChart.ts"  # Use new GraphChart for GraphViz data
+            "graphviz": "GraphChart.ts",  # Use new GraphChart for GraphViz data
+            "composite": "composite.ts"  # Universal mixed chart overlay
         }
         
         if script_name not in script_mapping:
@@ -293,6 +294,21 @@ class D3DenoBridge:
         """
         chart_input = {"data": data, "options": options or {}}
         return self._call_deno_script("graphviz", chart_input)
+    
+    def create_composite_chart(self, data: List[Dict[str, Any]], 
+                              options: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Create a composite chart that can render multiple chart types with harmonized scales.
+        
+        Args:
+            data: Unified chart data with renderType annotations
+            options: Chart options (title, colors, size, etc.)
+            
+        Returns:
+            SVG string
+        """
+        chart_input = {"data": data, "options": options or {}}
+        return self._call_deno_script("composite", chart_input)
     
     def display_svg(self, svg_string: str, width: int = 600, height: int = 400):
         """
@@ -1267,6 +1283,8 @@ class Chart:
             self._svg = bridge.create_graph_chart(self.data, self.options)
         elif self.chart_type == 'graphviz':
             self._svg = bridge.create_graphviz_chart(self.data, self.options)
+        elif self.chart_type == 'composite':
+            self._svg = bridge.create_composite_chart(self.data, self.options)
         else:
             raise ValueError(f"Unknown chart type: {self.chart_type}")
     
@@ -1339,22 +1357,23 @@ class Chart:
             # Fallback to old SVG-based composition for backward compatibility
             return self._compose_charts(other, 'stack')
         
-        # Check chart type compatibility
-        if self.chart_type != other.chart_type:
-            raise ValueError(f"Cannot overlay different chart types: {self.chart_type} and {other.chart_type}")
-        
-        # Combine data based on chart type
-        if self.chart_type in ['line', 'scatter']:
-            # For line/scatter charts, combine series
-            combined_data = list(self.data) + list(other.data)
-        elif self.chart_type == 'bar':
-            # For bar charts, would need different logic (not common to overlay)
-            raise ValueError("Bar chart overlay not supported - use side-by-side (+) instead")
-        elif self.chart_type == 'hist':
-            # For histograms, would need bin alignment (complex)
-            raise ValueError("Histogram overlay not supported - consider combining source data")
+        # Universal chart overlay - convert all chart types to unified format
+        if self.chart_type == other.chart_type:
+            # Same chart types - use optimized path
+            if self.chart_type in ['line', 'scatter']:
+                # For line/scatter charts, combine series directly
+                combined_data = list(self.data) + list(other.data)
+                combined_chart_type = self.chart_type
+            else:
+                # For other same-type combinations, use composite chart
+                unified_data = self._convert_to_unified_format() + other._convert_to_unified_format()
+                combined_data = unified_data
+                combined_chart_type = 'composite'
         else:
-            raise ValueError(f"Overlay not supported for chart type: {self.chart_type}")
+            # Different chart types - use universal composite chart
+            unified_data = self._convert_to_unified_format() + other._convert_to_unified_format()
+            combined_data = unified_data
+            combined_chart_type = 'composite'
         
         # Merge options, preferring the first chart's settings but combining titles and colors
         merged_options = self.options.copy()
@@ -1402,11 +1421,84 @@ class Chart:
         # Create new Chart with combined data
         return Chart(
             data=combined_data,
-            chart_type=self.chart_type,
+            chart_type=combined_chart_type,
             options=merged_options,
             width=width,
             height=height
         )
+    
+    def _convert_to_unified_format(self):
+        """
+        Convert chart data to unified format for composite charts.
+        
+        Returns:
+            List of unified series data compatible with CompositeChart
+        """
+        unified_data = []
+        
+        if self.chart_type == 'bar':
+            # Convert bar chart data: [{label, value}] -> [{name, renderType, data}]
+            series_data = {
+                'name': self.options.get('title', 'Bar Data'),
+                'renderType': 'bar',
+                'data': []
+            }
+            
+            for i, item in enumerate(self.data):
+                series_data['data'].append({
+                    'x': i,  # Use index as x position
+                    'y': item['value'],
+                    'label': item['label']
+                })
+            
+            unified_data.append(series_data)
+            
+        elif self.chart_type in ['line', 'scatter']:
+            # Convert line/scatter: already close to unified format
+            for series in self.data:
+                unified_series = {
+                    'name': series['name'],
+                    'renderType': self.chart_type,
+                    'data': []
+                }
+                
+                for point in series['data']:
+                    unified_point = {'x': point['x'], 'y': point['y']}
+                    if 'size' in point:
+                        unified_point['size'] = point['size']
+                    unified_series['data'].append(unified_point)
+                
+                unified_data.append(unified_series)
+                
+        elif self.chart_type == 'hist':
+            # Convert histogram: [{binStart, binEnd, count}] -> bar-like representation
+            series_data = {
+                'name': self.options.get('title', 'Histogram'),
+                'renderType': 'histogram',
+                'data': []
+            }
+            
+            for item in self.data:
+                bin_center = (item['binStart'] + item['binEnd']) / 2
+                series_data['data'].append({
+                    'x': bin_center,
+                    'y': item['count'],
+                    'binStart': item['binStart'],
+                    'binEnd': item['binEnd']
+                })
+            
+            unified_data.append(series_data)
+            
+        else:
+            # For other chart types, try to preserve as much as possible
+            series_data = {
+                'name': self.options.get('title', f'{self.chart_type} Data'),
+                'renderType': self.chart_type,
+                'data': self.data if isinstance(self.data, list) else [self.data]
+            }
+            unified_data.append(series_data)
+        
+        return unified_data
     
     def _compose_charts(self, other: 'Chart', operation: str) -> 'Chart':
         """
