@@ -768,14 +768,15 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
     errorMessage: string
   ): void {
     try {
-      const inputArg = Deno.args[0];
-      if (!inputArg) {
-        console.error('Error: No input data provided');
-        console.error(usageMessage);
+      const inputFilePath = Deno.args[0];
+      if (!inputFilePath) {
+        console.error('Error: No input file provided');
+        console.error(usageMessage.replace("'{\"data\":", "input_file.json"));
         Deno.exit(1);
       }
 
-      const input = JSON.parse(inputArg);
+      const inputContent = Deno.readTextFileSync(inputFilePath);
+      const input = JSON.parse(inputContent);
       
       if (!input.data || !Array.isArray(input.data)) {
         console.error(errorMessage);

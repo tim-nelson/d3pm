@@ -736,14 +736,15 @@ export class GraphChart extends BaseChart<GraphVizData, GraphChartOptions> {
 // CLI handling for GraphViz data
 if (typeof Deno !== 'undefined' && import.meta.main) {
   try {
-    const inputArg = Deno.args[0];
-    if (!inputArg) {
-      console.error('Error: No input data provided');
-      console.error('Usage: deno run --allow-all GraphChart.ts GRAPHVIZ_JSON');
+    const inputFilePath = Deno.args[0];
+    if (!inputFilePath) {
+      console.error('Error: No input file provided');
+      console.error('Usage: deno run --allow-all GraphChart.ts input_file.json');
       Deno.exit(1);
     }
 
-    const input = JSON.parse(inputArg);
+    const inputContent = Deno.readTextFileSync(inputFilePath);
+    const input = JSON.parse(inputContent);
     
     
     if (!input.data || !input.data.nodes || !Array.isArray(input.data.nodes)) {

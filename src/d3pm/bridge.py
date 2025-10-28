@@ -7,6 +7,7 @@ import subprocess
 import json
 import os
 import base64
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Literal
 from dataclasses import dataclass, asdict
@@ -177,13 +178,19 @@ class D3DenoBridge:
         if not os.path.exists(script_path):
             raise FileNotFoundError(f"Deno script not found: {script_path}")
         
-        # Serialize data to JSON
+        # Serialize data to JSON and write to temporary file
         json_data = json.dumps(data, ensure_ascii=False)
         
+        # Create temporary file for large data communication
+        temp_file = None
         try:
-            # Run Deno script
+            temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+            temp_file.write(json_data)
+            temp_file.close()
+            
+            # Run Deno script with temp file path
             result = subprocess.run(
-                [self.deno_path, "run", "--allow-all", script_path, json_data],
+                [self.deno_path, "run", "--allow-all", script_path, temp_file.name],
                 capture_output=True,
                 text=True,
                 timeout=30,  # 30 second timeout
@@ -204,6 +211,13 @@ class D3DenoBridge:
             raise RuntimeError("Deno script timed out after 30 seconds")
         except Exception as e:
             raise RuntimeError(f"Failed to execute Deno script: {str(e)}")
+        finally:
+            # Clean up temporary file
+            if temp_file and os.path.exists(temp_file.name):
+                try:
+                    os.unlink(temp_file.name)
+                except OSError:
+                    pass  # Ignore cleanup errors
     
     def create_bar_chart(self, data: List[Dict[str, Union[str, float]]], 
                         options: Optional[Dict[str, Any]] = None) -> str:
