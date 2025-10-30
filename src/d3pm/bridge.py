@@ -165,6 +165,7 @@ class D3DenoBridge:
             "line": "LineChart.ts", 
             "scatter": "ScatterChart.ts",
             "histogram": "HistogramChart.ts",
+            "heatmap": "HeatmapChart.ts",
             "graph": "GraphChart.ts",
             "graphviz": "GraphChart.ts",  # Use new GraphChart for GraphViz data
             "composite": "composite.ts"  # Universal mixed chart overlay
@@ -278,6 +279,21 @@ class D3DenoBridge:
         """
         chart_input = {"data": data, "options": options or {}}
         return self._call_deno_script("histogram", chart_input)
+
+    def create_heatmap_chart(self, data: List[Dict[str, Any]], 
+                            options: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Create a heatmap/matrix chart using D3.js via Deno.
+        
+        Args:
+            data: List of heatmap cells: [{"x": int, "y": int, "value": float, "text": str?}]
+            options: Chart options (title, colormap, size, etc.)
+            
+        Returns:
+            SVG string
+        """
+        chart_input = {"data": data, "options": options or {}}
+        return self._call_deno_script("heatmap", chart_input)
 
     def create_graph_chart(self, data: Dict[str, List[Dict[str, Any]]], 
                           options: Optional[Dict[str, Any]] = None) -> str:
@@ -443,7 +459,8 @@ def _get_default_bridge() -> D3DenoBridge:
 # Matplotlib-style convenience functions
 def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
         width=320, height=240, show=False, yticks=5, legend_position='right', 
-        legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
+        legend_offset=(0, 0), legend_style='standard', tick_numbers='nice', 
+        origin_labels=False, axis_at_origin=False, **kwargs) -> 'Chart':
     """
     Create a bar chart with academic styling.
     
@@ -507,7 +524,9 @@ def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, yticks=yticks, **kwargs)
+    options = _build_chart_options(config, yticks=yticks, 
+                                   tickNumbers=tick_numbers, originLabels=origin_labels, 
+                                   axisAtOrigin=axis_at_origin, **kwargs)
     
     # Add colors if provided
     if colors is not None:
@@ -538,7 +557,8 @@ def bar(categories, values, colors=None, title=None, xlabel=None, ylabel=None,
 
 def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=None, 
          width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
-         legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
+         legend_offset=(0, 0), legend_style='standard', tick_numbers='nice', 
+         origin_labels=False, axis_at_origin=False, **kwargs) -> 'Chart':
     """
     Create a line chart with academic styling.
     
@@ -649,7 +669,9 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, xticks=xticks, yticks=yticks, **kwargs)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, 
+                                   tickNumbers=tick_numbers, originLabels=origin_labels, 
+                                   axisAtOrigin=axis_at_origin, **kwargs)
     
     # Add colors if provided
     if colors is not None:
@@ -678,9 +700,10 @@ def line(x, y=None, colors=None, label=None, title=None, xlabel=None, ylabel=Non
     return chart
 
 
-def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, ylabel=None,
+def scatter(x, y, size=None, colors=None, labels=None, label=None, title=None, xlabel=None, ylabel=None,
            width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
-           legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
+           legend_offset=(0, 0), legend_style='standard', tick_numbers='nice', 
+           origin_labels=False, axis_at_origin=False, label_color=None, label_position='above', **kwargs) -> 'Chart':
     """
     Create a scatter plot with academic styling.
     
@@ -691,6 +714,7 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
         colors: List of colors for scatter points (hex codes, named colors, or mix)
                 Examples: ['red', 'blue'], ['#FF5733', '#33FF57'], ['red', '#FF5733']
                 Available named colors: 'red', 'blue', 'green', 'orange', 'purple', 'yellow'
+        labels: Array-like text labels for each point (optional)
         label: Label for the scatter series (optional)
         title: Chart title (optional)
         xlabel: X-axis label (optional)
@@ -704,6 +728,8 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
                         'left', 'right', 'top', 'bottom' (default: 'right')
         legend_offset: Tuple (x, y) for fine-tuning legend position (default: (0, 0))
         legend_style: Legend style - 'standard' (positioned) or 'tags' (horizontal above chart) (default: 'standard')
+        label_color: Color for point labels (default: theme text color)
+        label_position: Position of labels relative to points - 'center', 'above', 'below', 'left', 'right' (default: 'above')
         **kwargs: Additional chart options
         
     Returns:
@@ -713,6 +739,8 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
         d3pm.scatter(x_vals, y_vals)
         d3pm.scatter(x_vals, y_vals, colors=['blue'], size=sizes, label="Data Points")
         d3pm.scatter(x_vals, y_vals, colors=['#FF5733'], title="X vs Y", xlabel="X axis")
+        d3pm.scatter(x_vals, y_vals, labels=['A', 'B', 'C'])  # Label each point
+        d3pm.scatter(x_vals, y_vals, labels=itos, label_position='center', label_color='white')  # Matplotlib-style
         d3pm.scatter(x_vals, y_vals, xticks=0, yticks=0)  # No ticks
         d3pm.scatter(x_vals, y_vals, legend_position="bottom-right", legend_offset=(5, 5))
         d3pm.scatter(x_vals, y_vals, label="Points", legend_style="tags")  # Tag-style legend
@@ -740,12 +768,22 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
     else:
         size_clean = None
     
+    # Handle optional labels array
+    if labels is not None:
+        if len(labels) != len(x_clean):
+            raise ValueError("Labels array must have same length as x and y arrays")
+        labels_clean = [str(label) for label in labels]
+    else:
+        labels_clean = None
+    
     # Create data points
     data_points = []
     for i, (x_val, y_val) in enumerate(zip(x_clean, y_clean)):
         point = {"x": x_val, "y": y_val}
         if size_clean is not None:
             point["size"] = size_clean[i]
+        if labels_clean is not None:
+            point["label"] = labels_clean[i]
         data_points.append(point)
     
     # Create series data in expected format
@@ -758,7 +796,9 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, xticks=xticks, yticks=yticks, **kwargs)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, 
+                                   tickNumbers=tick_numbers, originLabels=origin_labels, 
+                                   axisAtOrigin=axis_at_origin, **kwargs)
     
     # Add colors if provided
     if colors is not None:
@@ -768,6 +808,12 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
     options['legendPosition'] = legend_position
     options['legendOffset'] = list(legend_offset)
     options['legendStyle'] = legend_style
+    
+    # Add label options
+    if label_color is not None:
+        options['labelColor'] = label_color
+    if label_position is not None:
+        options['labelPosition'] = label_position
     
     svg = bridge.create_scatter_chart(clean_data, options)
     
@@ -789,7 +835,8 @@ def scatter(x, y, size=None, colors=None, label=None, title=None, xlabel=None, y
 
 def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
          width=320, height=240, show=False, xticks=5, yticks=5, legend_position='right', 
-         legend_offset=(0, 0), legend_style='standard', **kwargs) -> 'Chart':
+         legend_offset=(0, 0), legend_style='standard', tick_numbers='nice', 
+         origin_labels=False, axis_at_origin=False, **kwargs) -> 'Chart':
     """
     Create a histogram chart with continuous x-axis and no gaps between bars.
     
@@ -879,7 +926,9 @@ def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
     # Build options using shared configuration
     config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
                         width=width, height=height, show=show)
-    options = _build_chart_options(config, xticks=xticks, yticks=yticks, **kwargs)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, 
+                                   tickNumbers=tick_numbers, originLabels=origin_labels, 
+                                   axisAtOrigin=axis_at_origin, **kwargs)
     
     # Add colors if provided
     if colors is not None:
@@ -896,6 +945,167 @@ def hist(values, bins=20, colors=None, title=None, xlabel=None, ylabel=None,
     chart = Chart(
         data=clean_data,
         chart_type='hist',
+        options=options,
+        svg=svg,
+        width=width,
+        height=height
+    )
+    
+    if show:
+        chart.show()
+    
+    return chart
+
+
+def imshow(matrix, cmap='viridis', annotations=None, title=None, xlabel=None, ylabel=None,
+           width=320, height=240, show=False, interpolation='nearest', aspect='auto', 
+           xticks=5, yticks=5, tick_numbers='nice', origin_labels=False, axis_at_origin=False, **kwargs) -> 'Chart':
+    """
+    Create a heatmap/matrix visualization from 2D array data.
+    
+    Args:
+        matrix: 2D array-like data (list of lists, numpy array, etc.)
+        cmap: Colormap options:
+            - D3 interpolators: 'viridis', 'Blues', 'grays', 'RdBu', 'coolwarm', 'plasma', 'inferno'
+            - d3pm colors: 'red', 'blue', 'green', 'yellow' (creates white-to-color gradients)
+            - d3pm palette: 'd3pm' (uses all 4 d3pm colors)
+            - Custom arrays: ['white', 'red'], ['blue', 'white', 'red'], etc.
+        annotations: Optional 2D array of text annotations for each cell
+        title: Chart title (optional)
+        xlabel: X-axis label (optional)
+        ylabel: Y-axis label (optional)
+        width: Chart width in pixels (default: 320)
+        height: Chart height in pixels (default: 240)
+        show: Whether to display the chart immediately
+        interpolation: Interpolation method - 'nearest', 'bilinear' (default: 'nearest')
+        aspect: Cell aspect ratio - 'auto' (fill space) or 'equal' (square cells) (default: 'auto')
+        xticks: Number of X-axis ticks (default: 5, 0 = no ticks)
+        yticks: Number of Y-axis ticks (default: 5, 0 = no ticks)
+        **kwargs: Additional chart options
+        
+    Returns:
+        Chart object with composition operators (+, *, /)
+        
+    Examples:
+        d3pm.imshow(matrix_2d, cmap='Blues', title='Heatmap')
+        d3pm.imshow(matrix_2d, cmap='red', aspect='equal', title='Square Cells')
+        d3pm.imshow(binary_matrix, cmap='gray', interpolation='nearest')
+        d3pm.imshow(matrix_2d, cmap=['white', 'red'], title='Custom Gradient')
+        d3pm.imshow(matrix_2d, cmap='d3pm', title='d3pm Colors')
+        d3pm.imshow(matrix_2d, cmap='viridis', xticks=3, yticks=4, title='Custom Ticks')
+        d3pm.imshow(matrix_2d, cmap='Blues', xticks=0, yticks=0, title='No Axis Ticks')
+    """
+    bridge = _get_default_bridge()
+    
+    # Convert matrix to numpy-safe format and handle numpy arrays
+    def safe_convert_matrix(matrix):
+        """Convert 2D matrix to list of lists, handling numpy arrays and boolean values."""
+        result = []
+        for row in matrix:
+            converted_row = []
+            for val in row:
+                if hasattr(val, 'item') and callable(getattr(val, 'item')):
+                    # NumPy scalar - extract the value and check if boolean
+                    extracted_val = val.item()
+                    if isinstance(extracted_val, bool):
+                        converted_val = int(extracted_val)
+                    else:
+                        converted_val = float(extracted_val)
+                elif isinstance(val, bool):
+                    # Python boolean - convert to int (True->1, False->0)
+                    converted_val = int(val)
+                else:
+                    # Regular value - convert to float
+                    converted_val = float(val)
+                converted_row.append(converted_val)
+            result.append(converted_row)
+        return result
+    
+    def safe_convert_annotations(annotations):
+        """Convert 2D annotations matrix to list of lists."""
+        if annotations is None:
+            return None
+        result = []
+        for row in annotations:
+            converted_row = []
+            for val in row:
+                if hasattr(val, 'item') and callable(getattr(val, 'item')):
+                    converted_row.append(str(val.item()))
+                else:
+                    converted_row.append(str(val))
+            result.append(converted_row)
+        return result
+    
+    # Convert 2D matrix to list of lists
+    clean_matrix = safe_convert_matrix(matrix)
+    clean_annotations = safe_convert_annotations(annotations)
+    
+    # Validate matrix dimensions
+    if not clean_matrix or not clean_matrix[0]:
+        raise ValueError("Matrix must be a non-empty 2D array")
+    
+    rows = len(clean_matrix)
+    cols = len(clean_matrix[0])
+    
+    # Debug output for troubleshooting
+    if 'DEBUG_HEATMAP' in os.environ:
+        print(f"DEBUG: Matrix dimensions: {rows}x{cols}")
+        print(f"DEBUG: First few matrix values: {clean_matrix[0][:min(5, cols)]}")
+        print(f"DEBUG: Matrix value types: {[type(clean_matrix[0][i]) for i in range(min(3, cols))]}")
+    
+    # Validate that all rows have the same length
+    for i, row in enumerate(clean_matrix):
+        if len(row) != cols:
+            raise ValueError(f"Matrix must be rectangular: row {i} has {len(row)} columns, expected {cols}")
+    
+    # Validate annotations matrix if provided
+    if clean_annotations is not None:
+        if len(clean_annotations) != rows:
+            raise ValueError(f"Annotations matrix must have same dimensions as data matrix: got {len(clean_annotations)} rows, expected {rows}")
+        for i, row in enumerate(clean_annotations):
+            if len(row) != cols:
+                raise ValueError(f"Annotations matrix must have same dimensions as data matrix: row {i} has {len(row)} columns, expected {cols}")
+    
+    # Convert matrix to flat data format expected by HeatmapChart
+    clean_data = []
+    for y in range(rows):
+        for x in range(cols):
+            cell_data = {
+                "x": x,
+                "y": y,
+                "value": clean_matrix[y][x]
+            }
+            # Add annotation text if provided
+            if clean_annotations is not None:
+                cell_data["text"] = clean_annotations[y][x]
+            clean_data.append(cell_data)
+    
+    # Build options using shared configuration
+    config = ChartConfig(title=title, xlabel=xlabel, ylabel=ylabel, 
+                        width=width, height=height, show=show)
+    options = _build_chart_options(config, xticks=xticks, yticks=yticks, 
+                                   tickNumbers=tick_numbers, originLabels=origin_labels, 
+                                   axisAtOrigin=axis_at_origin, **kwargs)
+    
+    # Add heatmap-specific options
+    options['colormap'] = cmap
+    options['interpolation'] = interpolation
+    options['aspect'] = aspect
+    options['rows'] = rows
+    options['cols'] = cols
+    
+    # Debug output for troubleshooting
+    if 'DEBUG_HEATMAP' in os.environ:
+        print(f"DEBUG: Total data points: {len(clean_data)}")
+        print(f"DEBUG: First few data points: {clean_data[:min(5, len(clean_data))]}")
+        print(f"DEBUG: Chart options: {options}")
+    
+    svg = bridge.create_heatmap_chart(clean_data, options)
+    
+    # Create Chart object with metadata for composition
+    chart = Chart(
+        data=clean_data,
+        chart_type='heatmap',
         options=options,
         svg=svg,
         width=width,
@@ -1293,6 +1503,8 @@ class Chart:
             self._svg = bridge.create_scatter_chart(self.data, self.options)
         elif self.chart_type == 'hist':
             self._svg = bridge.create_histogram_chart(self.data, self.options)
+        elif self.chart_type == 'heatmap':
+            self._svg = bridge.create_heatmap_chart(self.data, self.options)
         elif self.chart_type == 'graph':
             self._svg = bridge.create_graph_chart(self.data, self.options)
         elif self.chart_type == 'graphviz':

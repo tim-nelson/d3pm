@@ -22,6 +22,8 @@ export interface ScatterSeries {
 export interface ScatterChartOptions extends BaseChartOptions {
   pointSize?: number;
   opacity?: number;
+  labelColor?: string;
+  labelPosition?: 'center' | 'above' | 'below' | 'left' | 'right';
 }
 
 interface ScatterChartInput {
@@ -44,12 +46,13 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
   }
 
   protected getDefaultOptions(): Required<ScatterChartOptions> {
+    const baseDefaults = this.getBaseDefaults();
     return {
-      title: '',
-      xLabel: '',
-      yLabel: '',
+      ...baseDefaults,
       pointSize: 4,
-      opacity: 1.0
+      opacity: 1.0,
+      labelColor: '',  // Will use theme text color if empty
+      labelPosition: 'above'
     };
   }
 
@@ -128,7 +131,7 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
   protected renderXAxis(): void {
     const { innerHeight } = this.dimensions;
     const { axis, text } = this.themeColors;
-    const { xticks = 5 } = this.options;
+    const { xticks = 5, tickNumbers = 'nice' } = this.options;
     
     // Skip rendering if xticks is 0
     if (xticks === 0) return;
@@ -137,7 +140,15 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
     const xExtent = extent(this.allData, d => d.x)!;
     const dataRange = xExtent[1] - xExtent[0];
     
-    this.xScale.ticks(xticks).forEach((tick: number) => {
+    // Generate tick values based on tickNumbers strategy
+    let tickValues: number[];
+    if (tickNumbers === 'nice') {
+      tickValues = this.generateNiceTickValues(this.xScale.domain(), xticks);
+    } else {
+      tickValues = this.xScale.ticks(xticks);
+    }
+    
+    tickValues.forEach((tick: number) => {
       const x = this.xScale(tick);
       this.svgElements.push(
         `<line x1="${x}" y1="${innerHeight}" x2="${x}" y2="${innerHeight + 6}" stroke="${axis}" stroke-width="1"/>`
@@ -150,7 +161,7 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
 
   protected renderYAxis(): void {
     const { text, axis } = this.themeColors;
-    const { yticks = 5 } = this.options;
+    const { yticks = 5, tickNumbers = 'nice' } = this.options;
     
     // Skip rendering if yticks is 0
     if (yticks === 0) return;
@@ -159,7 +170,15 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
     const yExtent = extent(this.allData, d => d.y)!;
     const dataRange = yExtent[1] - yExtent[0];
     
-    this.yScale.ticks(yticks).forEach((tick: number) => {
+    // Generate tick values based on tickNumbers strategy
+    let tickValues: number[];
+    if (tickNumbers === 'nice') {
+      tickValues = this.generateNiceTickValues(this.yScale.domain(), yticks);
+    } else {
+      tickValues = this.yScale.ticks(yticks);
+    }
+    
+    tickValues.forEach((tick: number) => {
       const y = this.yScale(tick);
       this.svgElements.push(
         `<line x1="-6" y1="${y}" x2="0" y2="${y}" stroke="${axis}" stroke-width="1"/>`
@@ -171,7 +190,7 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
   }
 
   protected renderChartElements(): void {
-    const { pointSize, opacity } = this.options;
+    const { pointSize, opacity, labelColor, labelPosition } = this.options;
     const { text } = this.themeColors;
 
     this.data.forEach((seriesData, i) => {
@@ -189,14 +208,37 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
           `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${pointColor}" opacity="${opacity}"/>`
         );
 
-        // Add simple point labels if they exist
+        // Add point labels if they exist
         if (point.label) {
+          const textColor = labelColor || text;
+          const { textX, textY, anchor } = this.calculateLabelPosition(cx, cy, radius, labelPosition);
+          
           this.svgElements.push(
-            `<text x="${cx}" y="${cy - radius - 3}" text-anchor="middle" fill="${text}" font-size="10px">${point.label}</text>`
+            `<text x="${textX}" y="${textY}" text-anchor="${anchor}" fill="${textColor}" font-size="10px">${point.label}</text>`
           );
         }
       });
     });
+  }
+
+  private calculateLabelPosition(cx: number, cy: number, radius: number, position: string): 
+    { textX: number, textY: number, anchor: string } {
+    const padding = 3;
+    
+    switch (position) {
+      case 'center':
+        return { textX: cx, textY: cy + 3, anchor: 'middle' };  // +3 for vertical centering
+      case 'above':
+        return { textX: cx, textY: cy - radius - padding, anchor: 'middle' };
+      case 'below':
+        return { textX: cx, textY: cy + radius + padding + 8, anchor: 'middle' };  // +8 for text height
+      case 'left':
+        return { textX: cx - radius - padding, textY: cy + 3, anchor: 'end' };
+      case 'right':
+        return { textX: cx + radius + padding, textY: cy + 3, anchor: 'start' };
+      default:
+        return { textX: cx, textY: cy - radius - padding, anchor: 'middle' };  // fallback to above
+    }
   }
 
   protected renderUnifiedLegend(): void {
@@ -263,6 +305,24 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
         );
       });
     }
+  }
+
+  protected calculateOriginPosition(): { x: number, y: number } | null {
+    // Calculate where (0,0) is positioned within the chart area
+    if (!this.xScale || !this.yScale) return null;
+    
+    const xDomain = this.xScale.domain();
+    const yDomain = this.yScale.domain();
+    
+    // Check if origin is within the visible domain
+    if (0 >= xDomain[0] && 0 <= xDomain[1] && 0 >= yDomain[0] && 0 <= yDomain[1]) {
+      return {
+        x: this.xScale(0),
+        y: this.yScale(0)
+      };
+    }
+    
+    return null; // Origin is outside visible area
   }
 }
 
