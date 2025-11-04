@@ -191,7 +191,7 @@ class D3DenoBridge:
             
             # Run Deno script with temp file path
             result = subprocess.run(
-                [self.deno_path, "run", "--allow-all", script_path, temp_file.name],
+                [self.deno_path, "run", "--allow-all", "--no-check", script_path, temp_file.name],
                 capture_output=True,
                 text=True,
                 timeout=30,  # 30 second timeout
