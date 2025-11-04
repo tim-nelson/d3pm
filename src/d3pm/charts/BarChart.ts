@@ -75,12 +75,20 @@ export class BarChart extends BaseChart<BarData[], BarChartOptions> {
 
   protected renderYAxis(): void {
     const { text, axis } = this.themeColors;
-    const { yticks = 5 } = this.options;
+    const { yticks = 5, tickNumbers = 'nice' } = this.options;
     
     // Skip rendering if yticks is 0
     if (yticks === 0) return;
     
-    this.yScale.ticks(yticks).forEach((tick: number) => {
+    // Generate tick values based on tickNumbers strategy
+    let tickValues: number[];
+    if (tickNumbers === 'nice') {
+      tickValues = this.generateNiceTickValues(this.yScale.domain(), yticks);
+    } else {
+      tickValues = this.yScale.ticks(yticks);
+    }
+    
+    tickValues.forEach((tick: number) => {
       const y = this.yScale(tick);
       this.svgElements.push(
         `<line x1="-6" y1="${y}" x2="0" y2="${y}" stroke="${axis}" stroke-width="1"/>`
@@ -114,6 +122,25 @@ export class BarChart extends BaseChart<BarData[], BarChartOptions> {
         );
       }
     });
+  }
+
+  protected calculateOriginPosition(): { x: number, y: number } | null {
+    // For bar charts, only Y-axis origin (y=0) makes sense since X-axis is categorical
+    if (!this.yScale) return null;
+    
+    const yDomain = this.yScale.domain();
+    
+    // Check if y=0 is within the visible domain  
+    if (0 >= yDomain[0] && 0 <= yDomain[1]) {
+      // X position is center of chart since X-axis is categorical
+      const { innerWidth } = this.dimensions;
+      return {
+        x: innerWidth / 2,
+        y: this.yScale(0)
+      };
+    }
+    
+    return null; // Y origin is outside visible area
   }
 }
 

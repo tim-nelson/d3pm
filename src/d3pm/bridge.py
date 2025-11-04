@@ -1624,7 +1624,8 @@ class Chart:
             merged_colors.extend(colors1)
         else:
             # Use default colors for first chart's series
-            default_colors = ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4']  # Base defaults
+            default_colors = ['#658DCD', '#B1A04C', '#75A592', '#CF7280', '#A97ACC', '#C98C6C', '#E58BB7', '#7C7FB0']  # Base defaults
+            # default_colors = ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4']  # Base defaults
             merged_colors.extend(default_colors[:series1_count])
         
         # Add colors for second chart's series  
@@ -1632,7 +1633,8 @@ class Chart:
             merged_colors.extend(colors2)
         else:
             # Use remaining default colors for second chart's series
-            default_colors = ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4']
+            default_colors = ['#658DCD', '#B1A04C', '#75A592', '#CF7280', '#A97ACC', '#C98C6C', '#E58BB7', '#7C7FB0']
+            # default_colors = ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4']
             start_idx = len(merged_colors)
             merged_colors.extend(default_colors[start_idx:start_idx + series2_count])
         

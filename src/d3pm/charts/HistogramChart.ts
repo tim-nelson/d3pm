@@ -134,10 +134,17 @@ export class HistogramChart extends BaseChart<HistogramData[], HistogramChartOpt
         binEdges.push(lastBin.binEnd);
       }
     } else {
-      // For many bins or when not showing bin edges, use regular intervals
-      const tickCount = 6;
-      for (let i = 0; i <= tickCount; i++) {
-        binEdges.push(minX + (maxX - minX) * i / tickCount);
+      // For many bins or when not showing bin edges, use nice tick generation
+      const { xticks = 5, tickNumbers = 'nice' } = this.options;
+      
+      if (tickNumbers === 'nice') {
+        binEdges.push(...this.generateNiceTickValues([minX, maxX], xticks));
+      } else {
+        // Fallback to regular intervals
+        const tickCount = xticks;
+        for (let i = 0; i <= tickCount; i++) {
+          binEdges.push(minX + (maxX - minX) * i / tickCount);
+        }
       }
     }
 
@@ -188,9 +195,16 @@ export class HistogramChart extends BaseChart<HistogramData[], HistogramChartOpt
     }
 
     // Y-axis ticks
-    const { yticks = 5 } = this.options;
+    const { yticks = 5, tickNumbers = 'nice' } = this.options;
     if (yticks > 0) {
-      const yTicks = this.yScale.ticks(yticks);
+      // Generate Y-axis tick values based on tickNumbers strategy
+      let yTicks: number[];
+      if (tickNumbers === 'nice') {
+        yTicks = this.generateNiceTickValues(this.yScale.domain(), yticks);
+      } else {
+        yTicks = this.yScale.ticks(yticks);
+      }
+      
       yTicks.forEach((tick: number) => {
         const y = this.yScale(tick);
         this.svgElements.push(`
@@ -201,6 +215,24 @@ export class HistogramChart extends BaseChart<HistogramData[], HistogramChartOpt
         `);
       });
     }
+  }
+
+  protected calculateOriginPosition(): { x: number, y: number } | null {
+    // Calculate where (0,0) is positioned within the chart area
+    if (!this.xScale || !this.yScale) return null;
+    
+    const xDomain = this.xScale.domain();
+    const yDomain = this.yScale.domain();
+    
+    // Check if origin is within the visible domain
+    if (0 >= xDomain[0] && 0 <= xDomain[1] && 0 >= yDomain[0] && 0 <= yDomain[1]) {
+      return {
+        x: this.xScale(0),
+        y: this.yScale(0)
+      };
+    }
+    
+    return null; // Origin is outside visible area
   }
 }
 

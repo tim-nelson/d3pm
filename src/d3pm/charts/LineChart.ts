@@ -78,7 +78,7 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
   protected renderXAxis(): void {
     const { innerHeight } = this.dimensions;
     const { axis, text } = this.themeColors;
-    const { xticks = 5 } = this.options;
+    const { xticks = 5, tickNumbers = 'nice' } = this.options;
     
     // Skip rendering if xticks is 0
     if (xticks === 0) return;
@@ -87,7 +87,15 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
     const xExtent = extent(this.allData, d => d.x)!;
     const dataRange = xExtent[1] - xExtent[0];
     
-    this.xScale.ticks(xticks).forEach((tick: number) => {
+    // Generate tick values based on tickNumbers strategy
+    let tickValues: number[];
+    if (tickNumbers === 'nice') {
+      tickValues = this.generateNiceTickValues(this.xScale.domain(), xticks);
+    } else {
+      tickValues = this.xScale.ticks(xticks);
+    }
+    
+    tickValues.forEach((tick: number) => {
       const x = this.xScale(tick);
       this.svgElements.push(
         `<line x1="${x}" y1="${innerHeight}" x2="${x}" y2="${innerHeight + 6}" stroke="${axis}" stroke-width="1"/>`
@@ -100,7 +108,7 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
 
   protected renderYAxis(): void {
     const { text, axis } = this.themeColors;
-    const { yticks = 5 } = this.options;
+    const { yticks = 5, tickNumbers = 'nice' } = this.options;
     
     // Skip rendering if yticks is 0
     if (yticks === 0) return;
@@ -109,7 +117,15 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
     const yExtent = extent(this.allData, d => d.y)!;
     const dataRange = yExtent[1] - yExtent[0];
     
-    this.yScale.ticks(yticks).forEach((tick: number) => {
+    // Generate tick values based on tickNumbers strategy
+    let tickValues: number[];
+    if (tickNumbers === 'nice') {
+      tickValues = this.generateNiceTickValues(this.yScale.domain(), yticks);
+    } else {
+      tickValues = this.yScale.ticks(yticks);
+    }
+    
+    tickValues.forEach((tick: number) => {
       const y = this.yScale(tick);
       this.svgElements.push(
         `<line x1="-6" y1="${y}" x2="0" y2="${y}" stroke="${axis}" stroke-width="1"/>`
@@ -256,7 +272,7 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
       // Horizontal legend layout for top/bottom positions
       labels.forEach((label, i) => {
         const color = colors[i] || '#666';
-        const itemX = x + i * 80; // 80px spacing between items
+        const itemX = x + i * 95; // 95px spacing between items
         const itemY = y;
         
         this.svgElements.push(
@@ -294,6 +310,24 @@ export class LineChart extends BaseChart<LineSeries[], LineChartOptions> {
         );
       });
     }
+  }
+
+  protected calculateOriginPosition(): { x: number, y: number } | null {
+    // Calculate where (0,0) is positioned within the chart area
+    if (!this.xScale || !this.yScale) return null;
+    
+    const xDomain = this.xScale.domain();
+    const yDomain = this.yScale.domain();
+    
+    // Check if origin is within the visible domain
+    if (0 >= xDomain[0] && 0 <= xDomain[1] && 0 >= yDomain[0] && 0 <= yDomain[1]) {
+      return {
+        x: this.xScale(0),
+        y: this.yScale(0)
+      };
+    }
+    
+    return null; // Origin is outside visible area
   }
 }
 

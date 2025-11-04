@@ -9,6 +9,7 @@ Features:
 - Line charts: For continuous data and time series  
 - Scatter plots: For correlation analysis and point data
 - Histogram charts: For statistical distributions
+- Heatmap charts: For 2D matrix data and correlation matrices
 - Graph visualization: For networks, neural networks, and computational graphs
 - Chart composition with +, *, / operators
 - SVG output for high-quality publications
@@ -19,6 +20,10 @@ Usage:
     # Create basic charts
     chart1 = d3pm.bar(categories, values, title="Bar Chart")
     chart2 = d3pm.scatter(x_data, y_data, title="Scatter Plot") 
+    
+    # Create heatmap visualizations
+    heatmap = d3pm.imshow(matrix_2d, cmap='Blues', title="Heatmap")
+    annotated = d3pm.imshow(matrix_2d, cmap='viridis', annotations=text_matrix)
     
     # Create graph visualizations
     nodes = [d3pm.Node("a", "2.0", "rect"), d3pm.Node("op", "+", "circle")]
@@ -35,9 +40,9 @@ Usage:
     vertical = chart1 / chart2    # Top-bottom
 """
 
-from .bridge import bar, line, scatter, hist, graph, Chart, D3DenoBridge, Node, Edge
+from .bridge import bar, line, scatter, hist, imshow, graph, Chart, D3DenoBridge, Node, Edge
 
 __version__ = "0.1.0"
 __author__ = "Tim Nelson"
 
-__all__ = ['bar', 'line', 'scatter', 'hist', 'graph', 'Chart', 'D3DenoBridge', 'Node', 'Edge']
+__all__ = ['bar', 'line', 'scatter', 'hist', 'imshow', 'graph', 'Chart', 'D3DenoBridge', 'Node', 'Edge']

@@ -279,7 +279,7 @@ export class ScatterChart extends BaseChart<ScatterSeries[], ScatterChartOptions
       // Horizontal legend layout for top/bottom positions
       labels.forEach((label, i) => {
         const color = colors[i] || '#666';
-        const itemX = x + i * 80; // 80px spacing between items
+        const itemX = x + i * 95; // 95px spacing between items
         const itemY = y;
         
         this.svgElements.push(

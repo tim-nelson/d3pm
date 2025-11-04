@@ -38,6 +38,9 @@ export interface BaseChartOptions {
   aspectRatio?: 'auto' | 'equal';
   xticks?: number;
   yticks?: number;
+  tickNumbers?: 'auto' | 'nice';        // Use standard increments (1, 2, 5, 10, etc.)
+  originLabels?: boolean;               // Position axis labels at origin (0,0)
+  axisAtOrigin?: boolean;               // Draw axis lines through origin (0,0)
 }
 
 export interface ThemeColors {
@@ -72,16 +75,21 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
   // Named color mapping
   protected static readonly NAMED_COLORS: Record<string, string> = {
     'red': '#CF7280',
-    'yellow': '#DBB55C', 
+    'yellow': '#B1A04C', // OLD DBB55C; C4A052; C8B24C
     'blue': '#658DCD',
-    'green': '#96ceb4',
+    'green': '#75A592', // OLD" 96ceb4;
+    // Darker variants for better text contrast
+    'yellow_dark': '#C4A052',
+    'green_dark': '#82B8A3',
     // Add some additional useful colors
     'orange': '#f39c12',
     'purple': '#9b59b6',
     'pink': '#e91e63',
     'teal': '#1abc9c',
     'grey': '#95a5a6',
-    'gray': '#95a5a6'
+    'gray': '#95a5a6',
+    'dark_grey': '#333333',
+    'dark_gray': '#333333'
   };
 
   // Shared default values
@@ -90,7 +98,13 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
       width: 600,
       height: 400,
       margin: { top: 40, right: 20, bottom: 50, left: 55 },
-      colors: ['#CF7280', '#DBB55C', '#658DCD', '#96ceb4'],
+      // colors: ['#CF7280', '#B1A04C', '#658DCD', '#75A592', '#A97ACC', '#E58BB7', '#C98C6C', '#7C7FB0'],
+      // colors: ['#658DCD', '#75A592', '#CF7280', '#A97ACC', '#C4A052', '#E58BB7', '#C98C6C', '#7C7FB0'],  
+      // blue, green, red, purple, yellow, pink, brown, gray
+      // colors: ['#CF7280', '#B1A04C', '#658DCD', '#75A592', '#A97ACC', '#E58BB7', '#C98C6C', '#7C7FB0'],
+      colors: ['#658DCD', '#B1A04C', '#75A592', '#CF7280', '#A97ACC', '#C98C6C', '#E58BB7', '#7C7FB0'],
+      // blue, yellow, green, red, purple, brown, pink, gray
+      // blue, green, red, yellow, purple, brown, pink, gray
       theme: this.detectTheme(),
       forceOrigin: true,
       legendPosition: 'right' as const,
@@ -101,7 +115,10 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
       tagBorderRadius: 3,
       preserveAspectRatio: 'scale' as const,
       tickStrategy: 'auto' as const,
-      aspectRatio: 'auto' as const
+      aspectRatio: 'auto' as const,
+      tickNumbers: 'nice' as const,
+      originLabels: false,
+      axisAtOrigin: false
     };
   }
 
@@ -258,13 +275,44 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
   protected renderAxisLines(): void {
     const { innerWidth, innerHeight } = this.dimensions;
     const { axis } = this.themeColors;
+    const { axisAtOrigin = false } = this.options;
     
-    // Y axis line
+    if (axisAtOrigin) {
+      // Draw axis lines through origin (0,0)
+      const originPosition = this.calculateOriginPosition();
+      
+      if (originPosition) {
+        const { x: originX, y: originY } = originPosition;
+        
+        // Y axis line through origin
+        this.svgElements.push(
+          `<line x1="${originX}" y1="0" x2="${originX}" y2="${innerHeight}" stroke="${axis}" stroke-width="1"/>`
+        );
+        
+        // X axis line through origin
+        this.svgElements.push(
+          `<line x1="0" y1="${originY}" x2="${innerWidth}" y2="${originY}" stroke="${axis}" stroke-width="1"/>`
+        );
+      } else {
+        // Fall back to edge positioning if origin is not visible
+        this.renderEdgeAxisLines();
+      }
+    } else {
+      // Default edge positioning
+      this.renderEdgeAxisLines();
+    }
+  }
+
+  protected renderEdgeAxisLines(): void {
+    const { innerWidth, innerHeight } = this.dimensions;
+    const { axis } = this.themeColors;
+    
+    // Y axis line at left edge
     this.svgElements.push(
       `<line x1="0" y1="0" x2="0" y2="${innerHeight}" stroke="${axis}" stroke-width="1"/>`
     );
     
-    // X axis line
+    // X axis line at bottom edge
     this.svgElements.push(
       `<line x1="0" y1="${innerHeight}" x2="${innerWidth}" y2="${innerHeight}" stroke="${axis}" stroke-width="1"/>`
     );
@@ -283,21 +331,49 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
   }
 
   protected renderAxisLabels(): void {
-    const { xLabel, yLabel } = this.options;
-    const { width, height } = this.dimensions;
+    const { xLabel, yLabel, originLabels = false } = this.options;
+    const { width, height, margin, innerWidth, innerHeight } = this.dimensions;
     const { text } = this.themeColors;
     
-    if (xLabel) {
-      this.svgElements.push(
-        `<text x="${width/2}" y="${height - 10}" text-anchor="middle" fill="${text}" font-size="12px">${xLabel}</text>`
-      );
+    if (originLabels) {
+      // Position labels at origin (0,0) intersection point
+      const originPosition = this.calculateOriginPosition();
+      
+      if (xLabel && originPosition) {
+        const labelX = margin.left + originPosition.x;
+        const labelY = height - 10; // Keep below chart area
+        this.svgElements.push(
+          `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="${text}" font-size="12px">${xLabel}</text>`
+        );
+      }
+      
+      if (yLabel && originPosition) {
+        const labelX = 15; // Keep left of chart area
+        const labelY = -(margin.top + originPosition.y); // Rotate coordinate system
+        this.svgElements.push(
+          `<text transform="rotate(-90)" y="${labelX}" x="${labelY}" text-anchor="middle" fill="${text}" font-size="12px">${yLabel}</text>`
+        );
+      }
+    } else {
+      // Default positioning at chart edges
+      if (xLabel) {
+        this.svgElements.push(
+          `<text x="${width/2}" y="${height - 10}" text-anchor="middle" fill="${text}" font-size="12px">${xLabel}</text>`
+        );
+      }
+      
+      if (yLabel) {
+        this.svgElements.push(
+          `<text transform="rotate(-90)" y="15" x="${-height/2}" text-anchor="middle" fill="${text}" font-size="12px">${yLabel}</text>`
+        );
+      }
     }
-    
-    if (yLabel) {
-      this.svgElements.push(
-        `<text transform="rotate(-90)" y="15" x="${-height/2}" text-anchor="middle" fill="${text}" font-size="12px">${yLabel}</text>`
-      );
-    }
+  }
+
+  protected calculateOriginPosition(): { x: number, y: number } | null {
+    // This method should be overridden by subclasses that have scales
+    // Default implementation returns null (origin not applicable)
+    return null;
   }
 
   protected renderLegend(): void {
@@ -332,7 +408,7 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
       // Horizontal legend layout for top/bottom positions
       labels.forEach((label, i) => {
         const color = colors[i] || '#666';
-        const itemX = x + i * 80; // 80px spacing between items
+        const itemX = x + i * 95; // 95px spacing between items
         const itemY = y;
         
         // Draw line indicator
@@ -746,6 +822,62 @@ export abstract class BaseChart<TData, TOptions extends BaseChartOptions> implem
         `<text$1 transform="rotate(${rotationAngle})" text-anchor="start">`
       );
     });
+  }
+
+  protected generateNiceTickValues(domain: [number, number], requestedTicks: number): number[] {
+    const [min, max] = domain;
+    const range = max - min;
+    
+    if (range === 0) return [min];
+    
+    // Calculate rough step size
+    const roughStep = range / (requestedTicks - 1);
+    
+    // Find the magnitude (power of 10)
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    
+    // Standard nice increments: 1, 2, 5 (times powers of 10)
+    const niceIncrements = [1, 2, 5, 10];
+    
+    // Find the best nice increment
+    let bestStep = magnitude;
+    for (const increment of niceIncrements) {
+      const candidateStep = increment * magnitude;
+      if (candidateStep >= roughStep) {
+        bestStep = candidateStep;
+        break;
+      }
+    }
+    
+    // If none of the standard increments work, use the next magnitude
+    if (bestStep < roughStep) {
+      bestStep = magnitude * 10;
+    }
+    
+    // Generate tick values starting from a nice number
+    const niceMin = Math.floor(min / bestStep) * bestStep;
+    const niceMax = Math.ceil(max / bestStep) * bestStep;
+    
+    const ticks: number[] = [];
+    for (let tick = niceMin; tick <= niceMax + bestStep * 0.001; tick += bestStep) {
+      // Round to avoid floating point precision issues
+      const roundedTick = Math.round(tick / bestStep) * bestStep;
+      if (roundedTick >= min && roundedTick <= max) {
+        ticks.push(roundedTick);
+      }
+    }
+    
+    // Ensure we include endpoints if they're not already included
+    if (ticks.length > 0) {
+      if (Math.abs(ticks[0] - min) > bestStep * 0.01 && min < ticks[0]) {
+        ticks.unshift(min);
+      }
+      if (Math.abs(ticks[ticks.length - 1] - max) > bestStep * 0.01 && max > ticks[ticks.length - 1]) {
+        ticks.push(max);
+      }
+    }
+    
+    return ticks.length > 0 ? ticks : [min, max];
   }
 
   protected getTickStrategy(): 'skip' | 'rotate' {
