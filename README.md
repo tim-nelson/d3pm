@@ -8,6 +8,7 @@ Academic-style visualizations powered by D3.js through Deno runtime.
 - **Line charts**: For continuous data and time series  
 - **Scatter plots**: For correlation analysis and point data
 - **Histogram charts**: For statistical distributions
+- **Heatmap charts**: For 2D matrix visualization with color mapping
 - **Graph visualization**: For networks, neural networks, and computational graphs
 - **Chart composition**: Combine charts with `+`, `*`, `/` operators
 - **SVG output**: High-quality publications ready
@@ -103,6 +104,21 @@ d3pm.hist(data, title="Distribution")
 
 # Custom number of bins
 d3pm.hist(data, bins=10, title="Distribution")
+```
+
+### Heatmap Charts
+```python
+# 2D matrix visualization with color mapping
+data = [
+    {"x": 0, "y": 0, "value": 10}, 
+    {"x": 1, "y": 0, "value": 20},
+    {"x": 0, "y": 1, "value": 15}
+]
+d3pm.imshow(data, title="Heatmap Example", colormap="viridis")
+
+# With custom colormap and dimensions
+d3pm.imshow(data, colormap="Blues", title="Temperature Map", 
+           rows=2, cols=2, aspect="equal")
 ```
 
 ### Graph Visualization

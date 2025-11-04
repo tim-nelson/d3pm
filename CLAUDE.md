@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-d3pm is a Python package that provides academic-style visualizations by bridging Python with D3.js through Deno runtime. It generates publication-ready SVG charts with clean, minimal styling optimized for research and academic use.
+d3pm is a Python package that provides visualizations by bridging Python with D3.js through Deno runtime. It generates publication-ready SVG charts with clean, minimal styling.
 
 ## Architecture
 

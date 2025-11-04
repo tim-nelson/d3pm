@@ -4,11 +4,11 @@ This directory contains example notebooks demonstrating d3pm functionality.
 
 ## Notebooks
 
-### 📊 examples.ipynb
+### 📊 chart_examples.ipynb
 Complete showcase of standard d3pm chart types including:
-- Basic chart types (bar, line, scatter, histogram)
+- Basic chart types (bar, line, scatter, histogram, heatmap)
 - Chart composition operators (+, *, /)
-- Academic styling features
+- Clean styling features
 - Real-world use cases
 - Tips and troubleshooting
 
@@ -21,12 +21,10 @@ Comprehensive guide to graph visualization including:
 - Fixed vs force-directed layouts
 - Custom styling and semantic coloring
 - Real-world examples (ML models, dependencies)
-- Best practices for academic use
+- Best practices for visualization
 
 **Essential for network and graph visualization.**
 
-### 🧪 experiments.ipynb  
-Development playground for testing new features and experimenting with chart configurations. Use this notebook when developing new chart types or exploring advanced customization options.
 
 ## Requirements
 
@@ -38,16 +36,16 @@ Development playground for testing new features and experimenting with chart con
 ## Getting Started
 
 1. Install d3pm: `pip install d3pm`
-2. **For standard charts**: Open `examples.ipynb` in Jupyter
+2. **For standard charts**: Open `chart_examples.ipynb` in Jupyter
 3. **For graph visualization**: Open `graph_examples.ipynb` in Jupyter  
 4. Run all cells to see the visualizations in action
 5. Modify the examples to explore different options
 
-## Academic Styling
+## Clean Styling
 
-d3pm is designed for academic and research use with:
+d3pm is designed for publication-ready visualizations with:
 - Clean, minimal design optimized for publications
-- Academic color palettes
+- Professional color palettes
 - Proper typography and spacing
 - SVG output for high-quality prints
 - Customizable dimensions for paper layouts
